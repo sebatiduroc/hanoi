@@ -177,8 +177,8 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
   border-top:1px solid rgba(201,168,76,.12);
   display:flex;flex-direction:column;gap:8px;
 }
-.statsrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-.sb{background:var(--stone);border:1px solid var(--stone2);border-radius:3px;padding:8px 4px;text-align:center;}
+.statsrow{display:flex;justify-content:center;gap:8px;}
+.sb{background:var(--stone);border:1px solid var(--stone2);border-radius:3px;padding:8px 4px;text-align:center;width:44%;}
 .slbl{font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:3px;}
 .sval{font-size:clamp(20px,5.5vw,28px);color:var(--gold);font-weight:600;display:block;line-height:1;}
 .recbadge{font-size:10px;color:var(--gold-dim);display:block;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -296,7 +296,7 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
       <div class="wstat"><span class="wval" id="wmin">—</span><span class="wlbl">Minimum</span></div>
       <div class="wstat off" id="wPenStat"><span class="wval" id="wpen">—</span><span class="wlbl">Pénalité</span></div>
     </div>
-    <div class="recnew off" id="newrec">✦ Bravo ✦</div>
+    <div class="recnew off" id="newrec">✦ Bravo ! ✦</div>
     <div class="lbsect">
       <div class="lbtitle">Tableau des Sages — Niveau <span id="lbLvl">5</span></div>
       <div id="lbList"><div class="ltxt">Chargement…</div></div>
@@ -385,7 +385,6 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
     <div class="statsrow">
       <div class="sb"><span class="slbl">Coups</span><span class="sval" id="mc">0</span></div>
       <div class="sb"><span class="slbl">Temps</span><span class="sval" id="td">0:00</span></div>
-      <div class="sb"><span class="slbl">Record</span><span class="sval" id="rval">—</span><span class="recbadge" id="rby"></span></div>
     </div>
     <div class="hintrow">
       <div class="hint" id="hintLine">Glissez le disque du dessus vers une autre tour</div>
@@ -587,7 +586,6 @@ function initGame(){
   set('mc','0');set('td','0:00');
   set('pdsp','✦ '+G.pseudo+' · Niv. '+rom(G.n));
   set('minMoves',(1<<G.n)-1);
-  loadRec();
 
   function tryBuild(){
     if(computeDim()){
@@ -821,17 +819,6 @@ async function showWin(penaltyTour2){
   document.getElementById('newrec').classList.add('off');
 
   saveScore(mv, cs).then(result => loadLB(result)).catch(()=>loadLB());
-}
-
-function loadRec(){
-  const r=JSON.parse(localStorage.getItem(`hanoi_${G.n}`)||'null');
-  // Migration : si l'entrée n'a pas csP, on la supprime (format corrompu possible)
-  if(r && r.csP === undefined){
-    localStorage.removeItem(`hanoi_${G.n}`);
-    set('rval','—'); set('rby',''); return;
-  }
-  set('rval', r ? r.mv : '—');
-  set('rby',  r ? r.who : '');
 }
 
 
