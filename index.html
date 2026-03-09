@@ -32,7 +32,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   filter:sepia(1) saturate(2) hue-rotate(10deg);
 }
 
-/* ── ROTATE OVERLAY — forcer PAYSAGE ── */
+/* ── ROTATE OVERLAY ── */
 #rotateMsg{display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);
   flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;padding:32px;}
 #rotateMsg .ricon{font-size:56px;animation:rotpulse 1.5s ease-in-out infinite;}
@@ -240,10 +240,10 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 <!-- Emblème de Hanoï en arrière-plan fantôme -->
 <img id="hanoiEmblem" src="https://upload.wikimedia.org/wikipedia/commons/1/13/Emblem_of_Hanoi.svg" alt="" aria-hidden="true">
 
-<!-- Forçage PAYSAGE sur mobile -->
+<!-- Message rotation dynamique -->
 <div id="rotateMsg">
   <div class="ricon">📱</div>
-  <p>Veuillez tourner<br>votre appareil<br>en mode paysage</p>
+  <p id="rotateTxt">Veuillez tourner<br>votre appareil</p>
 </div>
 
 <div id="ghost"></div>
@@ -408,20 +408,27 @@ let G={pseudo:'',n:5,pegs:[[],[],[]],moves:0,cs:0,tmrStart:0,tmr:null,drag:null}
 let DIM={platH:16,rodH:100,rodW:10,diskH:14,diskGap:2,diskMaxW:150,diskMinW:28};
 
 /* ── PLEIN ÉCRAN ── */
+let _pendingGameStart = false;
+
 function toggleFullscreen(){
   if(!document.fullscreenElement){
     document.documentElement.requestFullscreen().catch(()=>{});
-    document.getElementById('fsBtn').textContent='✕';
-    document.getElementById('fsBtn').title='Quitter le plein écran';
   } else {
     document.exitFullscreen();
-    document.getElementById('fsBtn').textContent='⛶';
-    document.getElementById('fsBtn').title='Plein écran';
   }
 }
+
 document.addEventListener('fullscreenchange',()=>{
   const btn=document.getElementById('fsBtn');
-  if(btn){btn.textContent=document.fullscreenElement?'✕':'⛶';}
+  if(btn){
+    btn.textContent = document.fullscreenElement ? '✕' : '⛶';
+    btn.title = document.fullscreenElement ? 'Quitter le plein écran' : 'Plein écran';
+  }
+  // Si on attendait le plein écran pour démarrer la partie
+  if(_pendingGameStart){
+    _pendingGameStart = false;
+    _doStartGame();
+  }
 });
 
 /* ── DIMENSIONS ── */
@@ -451,18 +458,54 @@ function computeDim(){
   `;
 }
 
-/* ── ORIENTATION — forcer PAYSAGE ── */
+/* ── ORIENTATION ── */
+// gameActive = true → paysage requis ; false → portrait requis
+let gameActive = false;
+
+function lockOrientation(type){
+  // type: 'portrait-primary' | 'landscape-primary'
+  try{
+    if(screen.orientation && screen.orientation.lock){
+      screen.orientation.lock(type).catch(()=>{});
+    }
+  }catch(e){}
+}
+
 function checkOrientation(){
   const isPhone=('ontouchstart' in window)&&Math.min(screen.width,screen.height)<600;
-  const isPortrait=window.innerHeight>window.innerWidth;
-  // FIX : on montre le message si portrait (= pas en paysage), on cachait l'inverse avant
-  document.getElementById('rotateMsg').style.display=(isPhone&&isPortrait)?'flex':'none';
+  if(!isPhone){ document.getElementById('rotateMsg').style.display='none'; return; }
+  const isPortrait = window.innerHeight > window.innerWidth;
+  const needPortrait = !gameActive;   // menu → portrait
+  const needLandscape = gameActive;   // jeu  → paysage
+  const wrong = (needPortrait && !isPortrait) || (needLandscape && isPortrait);
+  const msg = document.getElementById('rotateMsg');
+  const txt = document.getElementById('rotateTxt');
+  if(wrong){
+    txt.innerHTML = needLandscape
+      ? 'Veuillez tourner<br>votre appareil<br>en mode paysage'
+      : 'Veuillez tourner<br>votre appareil<br>en mode portrait';
+    msg.style.display='flex';
+  } else {
+    msg.style.display='none';
+  }
 }
-window.addEventListener('resize',()=>{checkOrientation();if(G.tmr){computeDim();buildScene();}});
-window.addEventListener('orientationchange',()=>setTimeout(()=>{checkOrientation();if(G.tmr){computeDim();buildScene();}},100));
+
+window.addEventListener('resize',()=>{
+  checkOrientation();
+  if(G.tmr){ computeDim(); buildScene(); }
+});
+window.addEventListener('orientationchange',()=>setTimeout(()=>{
+  checkOrientation();
+  if(G.tmr){ computeDim(); buildScene(); }
+},100));
 
 /* ── SETUP ── */
-window.onload=()=>{setLvl(5);checkOrientation();};
+window.onload=()=>{
+  gameActive=false;
+  lockOrientation('portrait-primary');
+  setLvl(5);
+  checkOrientation();
+};
 
 function setLvl(n){
   G.n=n;
@@ -483,12 +526,37 @@ function startGame(){
     setTimeout(()=>el.classList.remove('err'),1500);el.focus();return;
   }
   G.pseudo=p;
+
+  if(document.fullscreenElement){
+    // Déjà en plein écran → lancer directement
+    _doStartGame();
+  } else if(document.documentElement.requestFullscreen){
+    // Demander le plein écran ; _doStartGame sera appelé par fullscreenchange
+    _pendingGameStart = true;
+    document.documentElement.requestFullscreen().catch(()=>{
+      // Plein écran refusé (ex: desktop bloqué) → lancer quand même
+      _pendingGameStart = false;
+      _doStartGame();
+    });
+  } else {
+    // API non disponible → lancer directement
+    _doStartGame();
+  }
+}
+
+function _doStartGame(){
+  gameActive=true;
+  lockOrientation('landscape-primary');
   show('oSetup',false);show('game',true);
+  checkOrientation();
   initGame();
 }
 function goMenu(){
   stopTmr();cancelDrag();
+  gameActive=false;
+  lockOrientation('portrait-primary');
   show('oWin',false);show('oRules',false);show('game',false);show('oSetup',true);
+  checkOrientation();
   document.getElementById('inp').value=G.pseudo;setLvl(G.n);
 }
 function restartSame(){show('oWin',false);initGame();}
