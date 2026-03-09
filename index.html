@@ -803,22 +803,17 @@ async function saveScore(mv,cs){
   const d=await r.json();const recs=d.record?.records||{};
   const lk=`level_${G.n}`;if(!recs[lk])recs[lk]=[];
 
-  // Score précédent de ce pseudo (s'il existe)
-  const prevEntry = recs[lk].find(e=>e.pseudo===G.pseudo);
-  const prevMv  = prevEntry ? prevEntry.moves : null;
-  const prevCs  = prevEntry ? (prevEntry.cs??prevEntry.secs*100) : null;
-
-  // Cette partie est-elle meilleure que l'ancienne entrée du pseudo ?
-  const isNewBest = !prevEntry
-    || mv < prevMv
-    || (mv === prevMv && cs < prevCs);
-
   const entry={pseudo:G.pseudo,moves:mv,cs,ts:new Date().toISOString()};
   const byP={};
   [...recs[lk],entry].forEach(e=>{
     if(!byP[e.pseudo]||e.moves<byP[e.pseudo].moves||(e.moves===byP[e.pseudo].moves&&(e.cs??e.secs*100)<(byP[e.pseudo].cs??byP[e.pseudo].secs*100)))
       byP[e.pseudo]=e;
   });
+
+  // isNewBest : l'entrée retenue pour ce pseudo après fusion est bien celle de cette partie
+  const savedEntry = byP[G.pseudo];
+  const isNewBest = savedEntry.ts === entry.ts;
+
   recs[lk]=Object.values(byP).sort((a,b)=>a.moves!==b.moves?a.moves-b.moves:(a.cs??a.secs*100)-(b.cs??b.secs*100)).slice(0,50);
   await fetch(`${JBIN}/b/${BIN_ID}`,{method:'PUT',
     headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
