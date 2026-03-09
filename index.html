@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tours de Hanoï</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Cinzel+Decorative:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6030;
+  --bg:#0a0806;--surface:#1e1a14;--stone:#2a2520;--stone2:#3d3830;
+  --text:#e8d5a0;--dim:#8a7850;--red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;touch-action:none;}
+body{
+  background:var(--bg);color:var(--text);font-family:'Cinzel',serif;
+  display:flex;flex-direction:column;align-items:center;
+  user-select:none;
+  padding-top:env(safe-area-inset-top);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse at 20% 20%,rgba(201,168,76,.04) 0%,transparent 60%),
+             radial-gradient(ellipse at 80% 80%,rgba(120,60,20,.06) 0%,transparent 60%);}
+
+/* ── EMBLÈME FANTÔME ── */
+#hanoiEmblem{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(70vw,70vh);height:min(70vw,70vh);
+  opacity:.04;pointer-events:none;z-index:0;
+  filter:sepia(1) saturate(2) hue-rotate(10deg);
+}
+
+/* ── ROTATE OVERLAY ── */
+#rotateMsg{display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);
+  flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;padding:32px;}
+#rotateMsg .ricon{font-size:56px;animation:rotpulse 1.5s ease-in-out infinite;}
+#rotateMsg p{font-size:14px;color:var(--dim);letter-spacing:3px;line-height:1.8;}
+@keyframes rotpulse{0%,100%{transform:rotate(0deg)}50%{transform:rotate(90deg)}}
+
+/* ── MODALS ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;
+  align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px);padding:12px;}
+.overlay.off{display:none;}
+.box{background:var(--surface);border:1px solid var(--gold-dim);padding:28px 32px;
+  max-width:460px;width:100%;text-align:center;position:relative;
+  box-shadow:0 0 80px rgba(201,168,76,.12),inset 0 1px 0 rgba(201,168,76,.1);
+  max-height:calc(100dvh - 24px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.box::before{content:'✦';position:absolute;top:10px;left:10px;color:var(--gold-dim);font-size:11px;}
+.box::after {content:'✦';position:absolute;bottom:10px;right:10px;color:var(--gold-dim);font-size:11px;}
+.mtitle{font-family:'Cinzel Decorative',serif;font-size:clamp(20px,5vw,28px);color:var(--gold);margin-bottom:4px;letter-spacing:2px;}
+.msub{font-size:11px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;margin-bottom:24px;}
+.mlabel{font-size:11px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;display:block;text-align:left;}
+input[type=text]{width:100%;background:var(--stone);border:1px solid var(--gold-dim);
+  color:var(--text);font-family:'Cinzel',serif;font-size:16px;padding:11px 14px;
+  outline:none;margin-bottom:18px;transition:border-color .2s;}
+input:focus{border-color:var(--gold);}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+@keyframes blinkRed{0%,100%{border-color:#c0392b;box-shadow:0 0 0 2px rgba(192,57,43,0)}50%{border-color:#e74c3c;box-shadow:0 0 0 2px rgba(192,57,43,.5)}}
+input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!important;}
+.lvlbtns{display:flex;gap:6px;justify-content:center;margin-bottom:18px;flex-wrap:wrap;}
+.lb{background:var(--stone);border:1px solid var(--gold-dim);color:var(--dim);
+  font-family:'Cinzel',serif;font-size:14px;padding:8px 18px;cursor:pointer;transition:all .2s;letter-spacing:1px;}
+.lb:hover{border-color:var(--gold);color:var(--gold);}
+.lb.on{background:var(--gold-dim);border-color:var(--gold);color:var(--gold-light);}
+.preview{display:flex;flex-direction:column;align-items:center;gap:3px;margin:10px 0 14px;}
+.minhint{font-size:11px;color:var(--dim);letter-spacing:2px;text-align:center;margin-bottom:18px;}
+.btnp{background:linear-gradient(135deg,var(--gold-dim),#5a4520);border:1px solid var(--gold);
+  color:var(--gold-light);font-family:'Cinzel',serif;font-size:14px;letter-spacing:3px;
+  text-transform:uppercase;padding:13px 32px;cursor:pointer;transition:all .25s;width:100%;}
+.btnp:hover{background:linear-gradient(135deg,#7a6030,#6a5025);box-shadow:0 0 30px rgba(201,168,76,.25);}
+.btnp.ghost{background:transparent;color:var(--dim);}
+
+/* ── RÈGLES MODAL ── */
+.rules-body{text-align:left;margin-top:4px;}
+.rules-body h3{font-size:12px;color:var(--gold);letter-spacing:3px;text-transform:uppercase;margin:16px 0 6px;}
+.rules-body h3:first-child{margin-top:0;}
+.rules-body p{font-size:12px;color:var(--text);line-height:1.7;letter-spacing:.5px;margin-bottom:6px;}
+.rules-body ul{padding-left:16px;margin-bottom:6px;}
+.rules-body li{font-size:12px;color:var(--text);line-height:1.7;letter-spacing:.5px;list-style:none;padding-left:10px;position:relative;}
+.rules-body li::before{content:'✦';position:absolute;left:0;color:var(--gold-dim);font-size:9px;top:3px;}
+.penalty-box{background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.4);padding:10px 14px;margin-top:12px;border-radius:2px;}
+.penalty-box p{color:#e07060;}
+
+/* ── WIN MODAL — pénalité ── */
+.penalty-notice{
+  color:#e07060;font-size:11px;letter-spacing:2px;text-transform:uppercase;
+  margin-bottom:14px;padding:8px;border:1px solid rgba(192,57,43,.5);
+  background:rgba(192,57,43,.07);
+}
+.penalty-notice.off{display:none;}
+
+/* ── GAME SHELL ── */
+#game{
+  display:flex;flex-direction:column;
+  width:100%;height:100dvh;
+  padding:0 14px;
+  position:relative;z-index:1;overflow:hidden;
+}
+#game.off{display:none;}
+
+/* ── TOP HEADER ── */
+.topbar{
+  flex-shrink:0;padding:12px 0 10px;
+  border-bottom:1px solid rgba(201,168,76,.12);text-align:center;
+}
+.topbar .gtitle{
+  font-family:'Cinzel Decorative',serif;
+  font-size:clamp(17px,5vw,24px);color:var(--gold);letter-spacing:2px;line-height:1.1;
+}
+.topbar .topmeta{
+  display:flex;justify-content:center;align-items:center;gap:14px;margin-top:5px;flex-wrap:wrap;
+}
+.topbar .topmeta span{font-size:clamp(11px,3vw,13px);color:var(--dim);letter-spacing:2px;}
+.topbar .topmeta .accent{color:var(--gold-light);}
+
+/* ── MIDDLE — scène centrée ── */
+.midzone{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;}
+.scenewrap{display:flex;align-items:flex-end;justify-content:center;}
+#scene{position:relative;width:100%;}
+
+.plat{position:absolute;bottom:0;left:2%;right:2%;
+  background:linear-gradient(180deg,#3d3020,#1e1810 60%,#0e0c08);
+  border-top:2px solid var(--gold-dim);
+  box-shadow:0 6px 30px rgba(0,0,0,.8),inset 0 1px 0 rgba(201,168,76,.15);}
+.plat::after{content:'';position:absolute;left:0;right:0;
+  background:linear-gradient(180deg,#1a1510,#0a0806);
+  clip-path:polygon(0 0,100% 0,97% 100%,3% 100%);}
+
+.pcol{position:absolute;bottom:0;top:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  border-radius:4px;border:2px solid transparent;
+  transition:background .1s,border-color .1s;cursor:default;}
+.pcol-0{left:2%;width:30%;}
+.pcol-1{left:35%;width:30%;}
+.pcol-2{left:68%;width:30%;}
+.pcol.pickable{cursor:grab;}
+.pcol.pickable:hover .rod{filter:brightness(1.15);}
+.pcol.candrop{background:rgba(201,168,76,.15);border-color:rgba(201,168,76,.6);box-shadow:0 0 20px rgba(201,168,76,.13) inset;cursor:copy;}
+.pcol.nodrop{background:rgba(180,40,40,.13);border-color:rgba(200,60,60,.45);}
+
+.rod{flex-shrink:0;position:relative;
+  background:linear-gradient(90deg,#4a3e2a,#7a6840 28%,#9a8850 50%,#7a6840 72%,#4a3e2a);
+  border-radius:3px 3px 0 0;box-shadow:3px 0 8px rgba(0,0,0,.5);}
+.rod::before{content:'';position:absolute;left:50%;transform:translateX(-50%);
+  border-radius:50%;background:radial-gradient(ellipse,#b09870,#7a6040 60%);}
+.plbl{font-size:11px;color:var(--dim);letter-spacing:2px;
+  position:absolute;bottom:-20px;left:0;right:0;text-align:center;}
+
+.dstack{position:absolute;bottom:0;display:flex;flex-direction:column-reverse;
+  align-items:center;width:100%;pointer-events:none;}
+.disk{border-radius:3px;flex-shrink:0;position:relative;}
+.disk.top{filter:brightness(1.12);}
+.disk.ghosted{visibility:hidden;}
+.disk-1{background:linear-gradient(180deg,#e74c3c,#922b21 50%,#641e16);box-shadow:0 2px 8px rgba(231,76,60,.4),inset 0 1px 0 rgba(255,150,130,.3);}
+.disk-2{background:linear-gradient(180deg,#e67e22,#935116 50%,#6e3b0e);box-shadow:0 2px 8px rgba(230,126,34,.4),inset 0 1px 0 rgba(255,180,100,.3);}
+.disk-3{background:linear-gradient(180deg,#f1c40f,#9a7d0a 50%,#7d6608);box-shadow:0 2px 8px rgba(241,196,15,.4),inset 0 1px 0 rgba(255,230,80,.3);}
+.disk-4{background:linear-gradient(180deg,#2ecc71,#1a7a44 50%,#145a32);box-shadow:0 2px 8px rgba(46,204,113,.4),inset 0 1px 0 rgba(100,255,160,.3);}
+.disk-5{background:linear-gradient(180deg,#3498db,#1a5276 50%,#154360);box-shadow:0 2px 8px rgba(52,152,219,.4),inset 0 1px 0 rgba(100,190,255,.3);}
+.disk-6{background:linear-gradient(180deg,#9b59b6,#6c3483 50%,#512e6c);box-shadow:0 2px 8px rgba(155,89,182,.4),inset 0 1px 0 rgba(200,120,255,.3);}
+.disk-7{background:linear-gradient(180deg,#ec407a,#880e4f 50%,#6a0f3e);box-shadow:0 2px 8px rgba(236,64,122,.4),inset 0 1px 0 rgba(255,130,180,.3);}
+.disk::before{content:'';position:absolute;top:3px;left:10%;right:10%;height:2px;background:rgba(255,255,255,.12);border-radius:2px;}
+.disk::after{content:'';position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,.22);border-radius:0 0 3px 3px;}
+
+#ghost{position:fixed;pointer-events:none;z-index:9999;border-radius:3px;
+  transform:translate(-50%,-60%) scale(1.1);
+  box-shadow:0 10px 36px rgba(0,0,0,.8);opacity:.93;display:none;}
+
+/* ── BOTTOM BAR ── */
+.botbar{
+  flex-shrink:0;padding:10px 0 10px;
+  border-top:1px solid rgba(201,168,76,.12);
+  display:flex;flex-direction:column;gap:8px;
+}
+.statsrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.sb{background:var(--stone);border:1px solid var(--stone2);border-radius:3px;padding:8px 4px;text-align:center;}
+.slbl{font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:3px;}
+.sval{font-size:clamp(20px,5.5vw,28px);color:var(--gold);font-weight:600;display:block;line-height:1;}
+.recbadge{font-size:10px;color:var(--gold-dim);display:block;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ctrlrow{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.hintblock{flex:1;min-width:0;}
+.hint{font-size:11px;color:var(--dim);letter-spacing:1px;line-height:1.5;}
+.esckey{font-size:10px;color:var(--gold-dim);letter-spacing:1px;opacity:0;transition:opacity .3s;height:14px;}
+.esckey.show{opacity:1;}
+.hbtns{display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+.btns{background:transparent;border:1px solid var(--stone2);color:var(--dim);
+  font-family:'Cinzel',serif;font-size:11px;letter-spacing:1px;
+  padding:7px 12px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btns:hover{border-color:var(--gold-dim);color:var(--text);}
+.btns.rules-btn{border-color:var(--gold-dim);color:var(--gold-dim);}
+.btns.rules-btn:hover{border-color:var(--gold);color:var(--gold);}
+
+/* ── WIN MODAL ── */
+.wstars{font-size:26px;margin:8px 0 12px;letter-spacing:6px;}
+.wstats{display:flex;justify-content:center;gap:12px;margin:12px 0 16px;flex-wrap:wrap;}
+.wstat{text-align:center;}
+.wval{font-size:26px;color:var(--gold);display:block;}
+.wlbl{font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;}
+.recnew{color:var(--gold-light);font-size:11px;letter-spacing:2px;text-transform:uppercase;
+  margin-bottom:14px;padding:8px;border:1px solid var(--gold-dim);background:rgba(201,168,76,.05);}
+.lbsect{margin-top:10px;text-align:left;}
+.lbtitle{font-size:10px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;margin-bottom:7px;text-align:center;}
+.lbrow{display:flex;justify-content:space-between;align-items:center;
+  padding:5px 8px;border-bottom:1px solid rgba(201,168,76,.06);font-size:12px;}
+.lbrow:first-child{border-top:1px solid rgba(201,168,76,.06);}
+.lbrnk{color:var(--gold-dim);width:22px;}
+.lbnm{color:var(--text);flex:1;margin-left:6px;}
+.lbsc{color:var(--gold);text-align:right;white-space:nowrap;}
+.lbrow.me{background:rgba(201,168,76,.07);}
+.ltxt{font-size:11px;color:var(--dim);letter-spacing:2px;text-align:center;padding:10px;}
+.etxt{font-size:11px;color:#e74c3c;letter-spacing:1px;text-align:center;padding:8px;}
+.div{display:flex;align-items:center;gap:10px;margin:12px 0;}
+.div::before,.div::after{content:'';flex:1;height:1px;background:var(--gold-dim);opacity:.4;}
+.div span{color:var(--gold-dim);font-size:14px;}
+
+/* ── RECORDS GLOBAL ── */
+.lb-level-block{margin-bottom:18px;}
+.lb-level-title{
+  font-size:11px;color:var(--gold);letter-spacing:4px;text-transform:uppercase;
+  text-align:center;padding:6px 0 8px;
+  border-bottom:1px solid rgba(201,168,76,.2);margin-bottom:6px;
+}
+.lb-loading{font-size:11px;color:var(--dim);letter-spacing:2px;text-align:center;padding:20px 0;}
+.btns.trophy-btn{
+  font-size:16px;padding:6px 10px;
+  border-color:var(--gold-dim);color:var(--gold);
+  letter-spacing:0;
+}
+.btns.trophy-btn:hover{border-color:var(--gold);box-shadow:0 0 12px rgba(201,168,76,.2);}
+</style>
+</head>
+<body>
+
+<!-- Emblème de Hanoï en arrière-plan fantôme -->
+<img id="hanoiEmblem" src="https://upload.wikimedia.org/wikipedia/commons/1/13/Emblem_of_Hanoi.svg" alt="" aria-hidden="true">
+
+<!-- Forçage portrait sur mobile -->
+<div id="rotateMsg">
+  <div class="ricon">📱</div>
+  <p>Veuillez tourner<br>votre appareil<br>en mode portrait</p>
+</div>
+
+<div id="ghost"></div>
+
+<!-- ══ SETUP ══ -->
+<div class="overlay" id="oSetup">
+  <div class="box">
+    <div class="mtitle">Tours de Hanoï</div>
+    <div class="msub">∴ Temple des Disques Sacrés ∴</div>
+    <label class="mlabel">Votre nom d'explorateur</label>
+    <input type="text" id="inp" placeholder="Entrez votre pseudo…" maxlength="20"
+           onkeydown="if(event.key==='Enter')startGame()">
+    <label class="mlabel">Niveau de difficulté</label>
+    <div class="lvlbtns">
+      <button class="lb" onclick="setLvl(3)">III</button>
+      <button class="lb" onclick="setLvl(4)">IV</button>
+      <button class="lb on" onclick="setLvl(5)">V</button>
+      <button class="lb" onclick="setLvl(6)">VI</button>
+      <button class="lb" onclick="setLvl(7)">VII</button>
+    </div>
+    <div class="preview" id="prev"></div>
+    <div class="minhint" id="mhint">Minimum : 31 coups</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button class="btnp ghost" style="flex:0 0 auto;padding:13px 16px;font-size:18px;" onclick="openRecords()" title="Tableau des records">🏆</button>
+      <button class="btnp" style="flex:1" onclick="startGame()">⚔ Commencer la quête</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ VICTOIRE ══ -->
+<div class="overlay off" id="oWin">
+  <div class="box">
+    <div class="mtitle" id="winTitle">Victoire !</div>
+    <div class="msub" id="winSub">∴ Les Dieux Approuvent ∴</div>
+    <div class="wstars" id="winStars">★ ★ ★</div>
+
+    <!-- Pénalité coups excédentaires -->
+    <div class="penalty-notice off" id="penaltyCoups">
+      ⚠ <span id="penaltyCoupsText"></span>
+    </div>
+    <!-- Pénalité tour II -->
+    <div class="penalty-notice off" id="penaltyNotice">
+      ⚠ Tour II — Pénalité × 2 sur le temps
+    </div>
+
+    <div class="wstats">
+      <div class="wstat"><span class="wval" id="wm">—</span><span class="wlbl">Coups</span></div>
+      <div class="wstat"><span class="wval" id="wt">—</span><span class="wlbl">Temps</span></div>
+      <div class="wstat"><span class="wval" id="wmin">—</span><span class="wlbl">Minimum</span></div>
+      <div class="wstat off" id="wPenStat"><span class="wval" id="wpen">—</span><span class="wlbl">Pénalité</span></div>
+    </div>
+    <div class="recnew off" id="newrec">✦ Nouveau Record ! ✦</div>
+    <div class="lbsect">
+      <div class="lbtitle">Tableau des Sages — Niveau <span id="lbLvl">5</span></div>
+      <div id="lbList"><div class="ltxt">Chargement…</div></div>
+    </div>
+    <div class="div"><span>✦</span></div>
+    <div style="display:flex;gap:8px">
+      <button class="btnp" style="flex:1" onclick="restartSame()">Rejouer</button>
+      <button class="btnp ghost" style="flex:1" onclick="goMenu()">Menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RÈGLES ══ -->
+<div class="overlay off" id="oRules">
+  <div class="box">
+    <div class="mtitle">Règles du jeu</div>
+    <div class="msub">∴ Les Lois du Temple ∴</div>
+    <div class="rules-body">
+
+      <h3>Objectif</h3>
+      <p>Déplacer tous les disques de la tour <strong style="color:var(--gold)">I</strong> vers la tour <strong style="color:var(--gold)">III</strong>, en respectant les règles ci-dessous.</p>
+
+      <h3>Règles</h3>
+      <ul>
+        <li>Un seul disque peut être déplacé à la fois.</li>
+        <li>Seul le disque au sommet d'une tour peut être pris.</li>
+        <li>Un disque ne peut jamais être posé sur un disque plus petit.</li>
+      </ul>
+
+      <h3>Niveaux</h3>
+      <p>Le nombre de disques va de <strong style="color:var(--gold)">III</strong> à <strong style="color:var(--gold)">VII</strong>. Le nombre minimum de coups pour réussir est <strong style="color:var(--gold)">2ⁿ − 1</strong> (ex. : 5 disques → 31 coups minimum).</p>
+
+      <h3>Coups excédentaires</h3>
+      <div class="penalty-box">
+        <p>Chaque coup effectué au-delà du minimum théorique (2ⁿ − 1) entraîne une <strong>pénalité de +2 secondes</strong> sur le temps final. Cette pénalité n'est pas affichée pendant la partie — elle est révélée uniquement à la fin, et prise en compte dans le classement.</p>
+      </div>
+
+      <h3>Tour II</h3>
+      <div class="penalty-box">
+        <p>Finir sur la tour <strong>II</strong> au lieu de la tour <strong>III</strong> est accepté comme une victoire, mais entraîne une <strong>pénalité</strong> : le temps est doublé (après application de la pénalité coups). En effet, il faudrait autant de temps supplémentaire pour transférer la pile de la tour II vers la tour III.</p>
+      </div>
+
+    </div>
+    <div class="div"><span>✦</span></div>
+    <button class="btnp" onclick="show('oRules',false)">Fermer</button>
+  </div>
+</div>
+
+<!-- ══ RECORDS GLOBAL ══ -->
+<div class="overlay off" id="oRecords">
+  <div class="box">
+    <div class="mtitle">Tableau des Sages</div>
+    <div class="msub">∴ Les Meilleurs Explorateurs ∴</div>
+    <div id="globalLbContent"><div class="lb-loading">Chargement…</div></div>
+    <div class="div"><span>✦</span></div>
+    <button class="btnp" onclick="show('oRecords',false)">Fermer</button>
+  </div>
+</div>
+
+<!-- ══ JEU ══ -->
+<div id="game" class="off">
+
+  <div class="topbar">
+    <div class="gtitle">Tours de Hanoï</div>
+    <div class="topmeta">
+      <span id="pdsp"></span>
+      <span>·</span>
+      <span>Minimum&nbsp;<span class="accent" id="minMoves">—</span>&nbsp;coups</span>
+    </div>
+  </div>
+
+  <div class="midzone">
+    <div class="scenewrap" id="sceneWrap">
+      <div id="scene"><div class="plat" id="plat"></div></div>
+    </div>
+  </div>
+
+  <div class="botbar">
+    <div class="statsrow">
+      <div class="sb"><span class="slbl">Coups</span><span class="sval" id="mc">0</span></div>
+      <div class="sb"><span class="slbl">Temps</span><span class="sval" id="td">0:00</span></div>
+      <div class="sb"><span class="slbl">Record</span><span class="sval" id="rval">—</span><span class="recbadge" id="rby"></span></div>
+    </div>
+    <div class="ctrlrow">
+      <div class="hintblock">
+        <div class="hint" id="hintLine">Glissez le disque du dessus vers une autre tour</div>
+        <div class="esckey" id="escHint">Échap pour annuler</div>
+      </div>
+      <div class="hbtns">
+        <button class="btns trophy-btn" onclick="openRecords()" title="Tableau des records">🏆</button>
+        <button class="btns rules-btn" onclick="show('oRules',true)">? Règles</button>
+        <button class="btns" onclick="resetGame()">↺ Reset</button>
+        <button class="btns" onclick="goMenu()">Menu</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API_KEY='$2a$10$KF8MxpCoz7EiaFpfywvUvel.9yrVRPB.gl670nIVTkj1qJ7MtVor6';
+const BIN_ID ='69aee540ae596e708f7126fb';
+const JBIN   ='https://api.jsonbin.io/v3';
+const DC=['#e74c3c','#e67e22','#f1c40f','#2ecc71','#3498db','#9b59b6','#ec407a'];
+const MAX_DISKS=7;
+
+let G={pseudo:'',n:5,pegs:[[],[],[]],moves:0,cs:0,tmrStart:0,tmr:null,drag:null};
+let DIM={platH:16,rodH:100,rodW:10,diskH:14,diskGap:2,diskMaxW:150,diskMinW:28};
+
+/* ── DIMENSIONS ── */
+function computeDim(){
+  const wrap=document.getElementById('sceneWrap');
+  const W=wrap.getBoundingClientRect().width;
+  DIM.diskH   =Math.round(Math.min(24,Math.max(13,W*0.046)));
+  DIM.diskGap =2;
+  DIM.platH   =Math.round(DIM.diskH*0.85);
+  const clearance=Math.round(DIM.diskH*0.7);
+  DIM.rodH=MAX_DISKS*(DIM.diskH+DIM.diskGap)+clearance;
+  DIM.rodW=Math.max(8,Math.round(W*0.016));
+  DIM.diskMaxW=Math.round(W*0.27);
+  DIM.diskMinW=Math.max(22,Math.round(W*0.05));
+  const sceneH=DIM.platH+DIM.rodH+22;
+  document.getElementById('scene').style.height=sceneH+'px';
+  document.getElementById('sceneWrap').style.height=sceneH+'px';
+  document.getElementById('sceneWrap').style.width='100%';
+  document.getElementById('plat').style.height=DIM.platH+'px';
+  let st=document.getElementById('dynStyle');
+  if(!st){st=document.createElement('style');st.id='dynStyle';document.head.appendChild(st);}
+  const fh=Math.round(DIM.platH*0.45);
+  const capW=Math.round(DIM.rodW*1.5),capH=Math.round(DIM.rodW*0.7);
+  st.textContent=`
+    .plat::after{height:${fh}px;bottom:-${fh}px;}
+    .rod::before{width:${capW}px;height:${capH}px;top:-${Math.round(capH/2)}px;}
+  `;
+}
+
+/* ── ORIENTATION ── */
+function checkOrientation(){
+  const isPhone=('ontouchstart' in window)&&Math.min(screen.width,screen.height)<600;
+  const isLandscape=window.innerWidth>window.innerHeight;
+  document.getElementById('rotateMsg').style.display=(isPhone&&isLandscape)?'flex':'none';
+}
+window.addEventListener('resize',()=>{checkOrientation();if(G.tmr){computeDim();buildScene();}});
+window.addEventListener('orientationchange',()=>setTimeout(()=>{checkOrientation();if(G.tmr){computeDim();buildScene();}},100));
+
+/* ── SETUP ── */
+window.onload=()=>{setLvl(5);checkOrientation();};
+
+function setLvl(n){
+  G.n=n;
+  document.querySelectorAll('.lb').forEach(b=>b.classList.toggle('on',b.textContent.trim()===rom(n)));
+  let h='';
+  for(let i=1;i<=n;i++)
+    h+=`<div style="width:${22+i*13}px;height:12px;border-radius:3px;background:${DC[i-1]};margin-bottom:2px;box-shadow:0 2px 5px rgba(0,0,0,.4)"></div>`;
+  document.getElementById('prev').innerHTML=h;
+  document.getElementById('mhint').textContent=`Minimum : ${(1<<n)-1} coups`;
+}
+function rom(n){return['III','IV','V','VI','VII'][n-3];}
+
+function startGame(){
+  const p=document.getElementById('inp').value.trim();
+  if(!p){
+    const el=document.getElementById('inp');
+    el.classList.remove('err');void el.offsetWidth;el.classList.add('err');
+    setTimeout(()=>el.classList.remove('err'),1500);el.focus();return;
+  }
+  G.pseudo=p;
+  show('oSetup',false);show('game',true);
+  initGame();
+}
+function goMenu(){
+  stopTmr();cancelDrag();
+  show('oWin',false);show('oRules',false);show('game',false);show('oSetup',true);
+  document.getElementById('inp').value=G.pseudo;setLvl(G.n);
+}
+function restartSame(){show('oWin',false);initGame();}
+function show(id,on){document.getElementById(id).classList.toggle('off',!on);}
+
+/* ── GAME ── */
+function initGame(){
+  stopTmr();cancelDrag();
+  G.moves=0;G.secs=0;G.pegs=[[],[],[]];
+  for(let i=G.n;i>=1;i--) G.pegs[0].push(i);
+  set('mc','0');set('td','0:00');
+  set('pdsp','✦ '+G.pseudo+' · Niv. '+rom(G.n));
+  set('minMoves',(1<<G.n)-1);
+  loadRec();
+  requestAnimationFrame(()=>{computeDim();buildScene();});
+  G.cs=0;G.tmrStart=performance.now();
+  G.tmr=setInterval(()=>{
+    G.cs=Math.round((performance.now()-G.tmrStart)/10);
+    const tot=G.cs, m=Math.floor(tot/6000), s=Math.floor((tot%6000)/100);
+    set('td',`${m}:${String(s).padStart(2,'0')}`);
+  },200);
+}
+function resetGame(){initGame();}
+function stopTmr(){if(G.tmr){G.cs=Math.round((performance.now()-G.tmrStart)/10);}clearInterval(G.tmr);G.tmr=null;}
+function set(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
+
+/* ── SCENE ── */
+function buildScene(){
+  const scene=document.getElementById('scene');
+  scene.querySelectorAll('.pcol').forEach(e=>e.remove());
+  for(let i=0;i<3;i++){
+    const col=document.createElement('div');
+    col.className=`pcol pcol-${i}`;col.id=`c${i}`;
+    col.style.bottom=DIM.platH+'px';
+    const rod=document.createElement('div');rod.className='rod';
+    rod.style.width=DIM.rodW+'px';rod.style.height=DIM.rodH+'px';
+    const stack=document.createElement('div');stack.className='dstack';stack.id=`s${i}`;
+    G.pegs[i].forEach(dn=>stack.appendChild(mkDisk(dn)));
+    const lbl=document.createElement('div');lbl.className='plbl';lbl.textContent=['I','II','III'][i];
+    col.appendChild(rod);col.appendChild(stack);col.appendChild(lbl);
+    col.addEventListener('mousedown',e=>{if(e.button!==0)return;e.preventDefault();onColDown(i,e.clientX,e.clientY,'mouse');});
+    col.addEventListener('touchstart',e=>{e.preventDefault();onColDown(i,e.touches[0].clientX,e.touches[0].clientY,'touch');},{passive:false});
+    scene.appendChild(col);
+  }
+  refreshCols();
+}
+
+function mkDisk(dn){
+  const el=document.createElement('div');el.className=`disk disk-${dn}`;
+  const w=Math.round(DIM.diskMinW+(dn-1)*(DIM.diskMaxW-DIM.diskMinW)/(G.n-1||1));
+  el.style.width=w+'px';el.style.height=DIM.diskH+'px';el.style.marginBottom=DIM.diskGap+'px';
+  return el;
+}
+
+function refreshCols(){
+  for(let i=0;i<3;i++){
+    const col=document.getElementById(`c${i}`);if(!col)return;
+    col.classList.remove('pickable','candrop','nodrop');
+    const s=document.getElementById(`s${i}`);
+    s.querySelectorAll('.disk').forEach(d=>d.classList.remove('top'));
+    if(s.lastElementChild)s.lastElementChild.classList.add('top');
+    if(!G.drag&&G.pegs[i].length>0)col.classList.add('pickable');
+  }
+  document.getElementById('escHint').classList.remove('show');
+}
+
+/* ── INTERACTION ── */
+function onColDown(colIdx,cx,cy,src){
+  if(!G.drag){if(G.pegs[colIdx].length===0)return;pickUp(colIdx,cx,cy,src);}
+  else doDropOrReturn(colIdx);
+}
+function pickUp(fromPeg,cx,cy,src){
+  const dn=G.pegs[fromPeg][G.pegs[fromPeg].length-1];
+  G.drag={dn,fromPeg,src};
+  ghostTop(fromPeg,true);showGhost(dn,cx,cy);
+  for(let i=0;i<3;i++)document.getElementById(`c${i}`)?.classList.remove('candrop','nodrop','pickable');
+  if(src==='mouse'){document.addEventListener('mousemove',onDocMove);document.addEventListener('mouseup',onDocUp);}
+  else{document.addEventListener('touchmove',onDocTouchMove,{passive:false});document.addEventListener('touchend',onDocTouchEnd);}
+}
+function doDropOrReturn(toPeg){
+  const {dn,fromPeg}=G.drag;
+  const valid=toPeg!==fromPeg&&(G.pegs[toPeg].length===0||dn<G.pegs[toPeg][G.pegs[toPeg].length-1]);
+  endDragListeners();hideGhost();G.drag=null;
+  if(valid){G.pegs[fromPeg].pop();G.pegs[toPeg].push(dn);G.moves++;set('mc',G.moves);buildScene();checkWin();}
+  else{ghostTop(fromPeg,false);refreshCols();}
+}
+function cancelDrag(){
+  if(G.drag){ghostTop(G.drag.fromPeg,false);G.drag=null;}
+  endDragListeners();hideGhost();refreshCols();
+}
+function ghostTop(p,on){const s=document.getElementById(`s${p}`);if(s&&s.lastElementChild)s.lastElementChild.classList.toggle('ghosted',on);}
+function onDocMove(e){if(G.drag){moveGhost(e.clientX,e.clientY);updateHover(e.clientX,e.clientY);}}
+function onDocTouchMove(e){e.preventDefault();if(G.drag){const t=e.touches[0];moveGhost(t.clientX,t.clientY);updateHover(t.clientX,t.clientY);}}
+function updateHover(cx,cy){
+  const over=colAt(cx,cy);
+  for(let i=0;i<3;i++){
+    const col=document.getElementById(`c${i}`);col.classList.remove('candrop','nodrop');
+    if(i===G.drag.fromPeg)continue;
+    const ok=G.pegs[i].length===0||G.drag.dn<G.pegs[i][G.pegs[i].length-1];
+    if(i===over)col.classList.add(ok?'candrop':'nodrop');
+  }
+}
+function onDocUp(e){if(!G.drag)return;endDragListeners();const c=colAt(e.clientX,e.clientY);if(c>=0)doDropOrReturn(c);else cancelDrag();}
+function onDocTouchEnd(e){if(!G.drag)return;endDragListeners();const t=e.changedTouches[0];const c=colAt(t.clientX,t.clientY);if(c>=0)doDropOrReturn(c);else cancelDrag();}
+function endDragListeners(){document.removeEventListener('mousemove',onDocMove);document.removeEventListener('mouseup',onDocUp);document.removeEventListener('touchmove',onDocTouchMove);document.removeEventListener('touchend',onDocTouchEnd);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&G.drag)cancelDrag();});
+function colAt(cx,cy){
+  for(let i=0;i<3;i++){const r=document.getElementById(`c${i}`).getBoundingClientRect();if(cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom)return i;}
+  return -1;
+}
+
+/* ── GHOST ── */
+function showGhost(dn,cx,cy){
+  const g=document.getElementById('ghost');g.className=`disk disk-${dn}`;g.id='ghost';
+  const w=Math.round(DIM.diskMinW+(dn-1)*(DIM.diskMaxW-DIM.diskMinW)/(G.n-1||1));
+  g.style.width=w+'px';g.style.height=DIM.diskH+'px';
+  g.style.left=cx+'px';g.style.top=cy+'px';g.style.display='block';
+}
+function hideGhost(){document.getElementById('ghost').style.display='none';}
+function moveGhost(cx,cy){const g=document.getElementById('ghost');g.style.left=cx+'px';g.style.top=cy+'px';}
+
+/* ── WIN ── */
+function checkWin(){
+  // Tour III : victoire normale (peg index 2)
+  if(G.pegs[2].length===G.n){ stopTmr(); setTimeout(()=>showWin(false),250); return; }
+  // Tour II : victoire avec pénalité (peg index 1)
+  if(G.pegs[1].length===G.n){ stopTmr(); setTimeout(()=>showWin(true),250); }
+}
+
+async function showWin(penaltyTour2){
+  const mv=G.moves;
+  const rawCs=G.cs;
+  const mn=(1<<G.n)-1;
+
+  // Pénalité coups excédentaires : +2s par coup au-delà du minimum
+  const excessMoves=Math.max(0,mv-mn);
+  const coupPenCs=excessMoves*200; // 2 secondes = 200 centièmes
+
+  // Pénalité tour II : double le temps (après pénalité coups)
+  const csAfterCoups = rawCs + coupPenCs;
+  const cs = penaltyTour2 ? csAfterCoups*2 : csAfterCoups;
+
+  // Titre & étoiles
+  const anyPenalty = penaltyTour2 || excessMoves>0;
+  set('winTitle', anyPenalty ? 'Victoire… Pénalisée' : 'Victoire !');
+  const subs = [];
+  if(penaltyTour2) subs.push('Tour II');
+  if(excessMoves>0) subs.push(`${excessMoves} coup${excessMoves>1?'s':''} excédentaire${excessMoves>1?'s':''}`);
+  set('winSub', subs.length ? '∴ '+subs.join(' · ')+' ∴' : '∴ Les Dieux Approuvent ∴');
+  document.getElementById('winStars').textContent = penaltyTour2 ? '★ ★ ☆' : (excessMoves>0 ? '★ ★ ✦' : '★ ★ ★');
+
+  // Affichage pénalité tour II
+  document.getElementById('penaltyNotice').classList.toggle('off', !penaltyTour2);
+
+  // Affichage pénalité coups
+  const pcEl=document.getElementById('penaltyCoups');
+  if(excessMoves>0){
+    pcEl.classList.remove('off');
+    set('penaltyCoupsText', `+${excessMoves} coup${excessMoves>1?'s':''} excédentaire${excessMoves>1?'s':''} — pénalité +${excessMoves*2}s`);
+  } else {
+    pcEl.classList.add('off');
+  }
+
+  // Champ pénalité dans les stats
+  const penStat=document.getElementById('wPenStat');
+  if(anyPenalty){
+    penStat.classList.remove('off');
+    const penSec=Math.round((cs-rawCs)/100);
+    const pm=Math.floor(penSec/60),ps=penSec%60;
+    set('wpen',`+${pm>0?pm+':':''}${String(ps).padStart(pm>0?2:1,'0')}s`);
+  } else {
+    penStat.classList.add('off');
+  }
+
+  const m=Math.floor(cs/6000), s=Math.floor((cs%6000)/100);
+  set('wm',mv);set('wt',`${m}:${String(s).padStart(2,'0')}`);set('wmin',mn);set('lbLvl',G.n);
+  show('oWin',true);
+
+  const key=`hanoi_${G.n}`;
+  const prev=JSON.parse(localStorage.getItem(key)||'null');
+  const isRec=!prev||mv<prev.mv||(mv===prev.mv&&cs<prev.cs);
+  if(isRec){localStorage.setItem(key,JSON.stringify({mv,cs,who:G.pseudo}));loadRec();}
+  document.getElementById('newrec').classList.toggle('off',!isRec);
+
+  saveScore(mv,cs).then(()=>loadLB()).catch(()=>loadLB());
+}
+
+function loadRec(){
+  const r=JSON.parse(localStorage.getItem(`hanoi_${G.n}`)||'null');
+  set('rval',r?r.mv:'—');set('rby',r?r.who:'');
+}
+
+/* ── JSONBIN ── */
+async function saveScore(mv,cs){
+  const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
+  const d=await r.json();const recs=d.record?.records||{};
+  const lk=`level_${G.n}`;if(!recs[lk])recs[lk]=[];
+  const entry={pseudo:G.pseudo,moves:mv,cs,ts:new Date().toISOString()};
+  const byP={};
+  [...recs[lk],entry].forEach(e=>{
+    if(!byP[e.pseudo]||e.moves<byP[e.pseudo].moves||(e.moves===byP[e.pseudo].moves&&(e.cs??e.secs*100)<(byP[e.pseudo].cs??byP[e.pseudo].secs*100)))
+      byP[e.pseudo]=e;
+  });
+  recs[lk]=Object.values(byP).sort((a,b)=>a.moves!==b.moves?a.moves-b.moves:(a.cs??a.secs*100)-(b.cs??b.secs*100)).slice(0,50);
+  await fetch(`${JBIN}/b/${BIN_ID}`,{method:'PUT',
+    headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
+    body:JSON.stringify({records:recs})});
+}
+async function loadLB(){
+  const el=document.getElementById('lbList');
+  try{
+    const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
+    const d=await r.json();
+    const entries=(d.record?.records||{})[`level_${G.n}`]||[];
+    if(!entries.length){el.innerHTML='<div class="ltxt">Aucun record encore…</div>';return;}
+    el.innerHTML='';
+    entries.slice(0,10).forEach((e,i)=>{
+      const row=document.createElement('div');
+      row.className='lbrow'+(e.pseudo===G.pseudo?' me':'');
+      const tot=e.cs??((e.secs??0)*100);
+      const mm=Math.floor(tot/6000),ss=Math.floor((tot%6000)/100),cc=tot%100;
+      row.innerHTML=`<span class="lbrnk">${i+1}</span><span class="lbnm">${esc(e.pseudo)}</span><span class="lbsc">${e.moves} coups · ${mm}:${String(ss).padStart(2,'0')}.${String(cc).padStart(2,'0')}</span>`;
+      el.appendChild(row);
+    });
+  }catch{el.innerHTML='<div class="etxt">Classement indisponible</div>';}
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ── RECORDS GLOBAL ── */
+function fmtCs(tot){
+  // centièmes → m:ss.cc
+  const mm=Math.floor(tot/6000),ss=Math.floor((tot%6000)/100),cc=tot%100;
+  return `${mm}:${String(ss).padStart(2,'0')}.${String(cc).padStart(2,'0')}`;
+}
+
+function openRecords(){
+  show('oRecords',true);
+  const el=document.getElementById('globalLbContent');
+  el.innerHTML='<div class="lb-loading">Chargement…</div>';
+  fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}})
+    .then(r=>r.json())
+    .then(d=>{
+      const recs=d.record?.records||{};
+      let html='';
+      [3,4,5,6,7].forEach(n=>{
+        const lk=`level_${n}`;
+        const entries=(recs[lk]||[]).slice(0,5);
+        html+=`<div class="lb-level-block">`;
+        html+=`<div class="lb-level-title">${['III','IV','V','VI','VII'][n-3]} disques — min. ${(1<<n)-1} coups</div>`;
+        if(!entries.length){
+          html+=`<div class="ltxt">Aucun record</div>`;
+        } else {
+          entries.forEach((e,i)=>{
+            const tot=e.cs??((e.secs??0)*100);
+            const meClass=(e.pseudo===G.pseudo)?' me':'';
+            html+=`<div class="lbrow${meClass}">
+              <span class="lbrnk">${i+1}</span>
+              <span class="lbnm">${esc(e.pseudo)}</span>
+              <span class="lbsc">${e.moves} coups · ${fmtCs(tot)}</span>
+            </div>`;
+          });
+        }
+        html+=`</div>`;
+      });
+      el.innerHTML=html;
+    })
+    .catch(()=>{el.innerHTML='<div class="etxt">Impossible de charger les records</div>';});
+}
+</script>
+</body>
+</html>
