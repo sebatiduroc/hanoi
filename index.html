@@ -73,9 +73,10 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 .btnp.ghost{background:transparent;color:var(--dim);}
 
 /* ── SETUP BUTTONS ROW — Records 1/3 + Commencer 2/3 ── */
-.setup-btnrow{display:flex;gap:8px;margin-bottom:10px;}
-.setup-btnrow .btn-records{flex:1;}
-.setup-btnrow .btn-start{flex:2;}
+.setup-btnrow{display:flex;gap:8px;margin-bottom:10px;width:100%;}
+.setup-btnrow .btnp{padding:13px 8px;letter-spacing:1px;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.setup-btnrow .btn-records{flex:1 1 0;}
+.setup-btnrow .btn-start{flex:2 1 0;}
 
 /* ── RÈGLES MODAL ── */
 .rules-body{text-align:left;margin-top:4px;}
@@ -433,26 +434,41 @@ document.addEventListener('fullscreenchange',()=>{
 
 /* ── DIMENSIONS ── */
 function computeDim(){
-  const wrap=document.getElementById('sceneWrap');
-  const W=wrap.getBoundingClientRect().width;
-  DIM.diskH   =Math.round(Math.min(24,Math.max(13,W*0.046)));
-  DIM.diskGap =2;
-  DIM.platH   =Math.round(DIM.diskH*0.85);
-  const clearance=Math.round(DIM.diskH*0.7);
-  DIM.rodH=MAX_DISKS*(DIM.diskH+DIM.diskGap)+clearance;
-  DIM.rodW=Math.max(8,Math.round(W*0.016));
-  DIM.diskMaxW=Math.round(W*0.27);
-  DIM.diskMinW=Math.max(22,Math.round(W*0.05));
-  const sceneH=DIM.platH+DIM.rodH+22;
-  document.getElementById('scene').style.height=sceneH+'px';
-  document.getElementById('sceneWrap').style.height=sceneH+'px';
-  document.getElementById('sceneWrap').style.width='100%';
-  document.getElementById('plat').style.height=DIM.platH+'px';
-  let st=document.getElementById('dynStyle');
-  if(!st){st=document.createElement('style');st.id='dynStyle';document.head.appendChild(st);}
-  const fh=Math.round(DIM.platH*0.45);
-  const capW=Math.round(DIM.rodW*1.5),capH=Math.round(DIM.rodW*0.7);
-  st.textContent=`
+  const wrap = document.getElementById('sceneWrap');
+  const midzone = document.querySelector('.midzone');
+  const W = wrap.getBoundingClientRect().width;
+
+  // Hauteur disponible dans la midzone (entre topbar et botbar), avec marge
+  const availH = midzone.getBoundingClientRect().height - 32;
+
+  // On calcule diskH de façon à ce que tout tienne dans availH :
+  // sceneH = platH + rodH + 22
+  // rodH   = MAX_DISKS*(diskH+diskGap) + clearance  ≈ MAX_DISKS*(diskH+2) + diskH*0.7
+  // platH  ≈ diskH*0.85
+  // → diskH * (0.85 + 7*1 + 7*2/diskH + 0.7) + 22 ≤ availH
+  // Simplifié : diskH_max = (availH - 22) / (MAX_DISKS + 1.55 + MAX_DISKS*2/16)
+  const diskHfromH = Math.floor((availH - 22) / (MAX_DISKS + 1.55 + MAX_DISKS * 2 / 16));
+  const diskHfromW = Math.round(Math.min(24, Math.max(13, W * 0.046)));
+  DIM.diskH   = Math.max(10, Math.min(diskHfromH, diskHfromW));
+  DIM.diskGap = 2;
+  DIM.platH   = Math.round(DIM.diskH * 0.85);
+  const clearance = Math.round(DIM.diskH * 0.7);
+  DIM.rodH    = MAX_DISKS * (DIM.diskH + DIM.diskGap) + clearance;
+  DIM.rodW    = Math.max(6, Math.round(W * 0.016));
+  DIM.diskMaxW = Math.round(W * 0.27);
+  DIM.diskMinW = Math.max(18, Math.round(W * 0.05));
+
+  const sceneH = DIM.platH + DIM.rodH + 22;
+  document.getElementById('scene').style.height = sceneH + 'px';
+  document.getElementById('sceneWrap').style.height = sceneH + 'px';
+  document.getElementById('sceneWrap').style.width = '100%';
+  document.getElementById('plat').style.height = DIM.platH + 'px';
+
+  let st = document.getElementById('dynStyle');
+  if(!st){st = document.createElement('style'); st.id = 'dynStyle'; document.head.appendChild(st);}
+  const fh  = Math.round(DIM.platH * 0.45);
+  const capW = Math.round(DIM.rodW * 1.5), capH = Math.round(DIM.rodW * 0.7);
+  st.textContent = `
     .plat::after{height:${fh}px;bottom:-${fh}px;}
     .rod::before{width:${capW}px;height:${capH}px;top:-${Math.round(capH/2)}px;}
   `;
