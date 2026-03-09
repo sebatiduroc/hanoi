@@ -405,7 +405,7 @@ const JBIN   ='https://api.jsonbin.io/v3';
 const DC=['#e74c3c','#e67e22','#f1c40f','#2ecc71','#3498db','#9b59b6','#ec407a'];
 const MAX_DISKS=7;
 
-let G={pseudo:'',n:5,pegs:[[],[],[]],moves:0,cs:0,tmrStart:0,tmr:null,drag:null};
+let G={pseudo:'',n:5,pegs:[[],[],[]],moves:0,cs:0,tmrStart:0,tmr:null,drag:null,paused:false};
 let DIM={platH:16,rodH:100,rodW:10,diskH:14,diskGap:2,diskMaxW:150,diskMinW:28};
 
 /* ── PLEIN ÉCRAN ── */
@@ -569,7 +569,7 @@ function show(id,on){document.getElementById(id).classList.toggle('off',!on);}
 /* ── GAME ── */
 function initGame(){
   stopTmr();cancelDrag();
-  G.moves=0;G.secs=0;G.pegs=[[],[],[]];
+  G.moves=0;G.secs=0;G.paused=false;G.pegs=[[],[],[]];
   for(let i=G.n;i>=1;i--) G.pegs[0].push(i);
   set('mc','0');set('td','0:00');
   set('pdsp','✦ '+G.pseudo+' · Niv. '+rom(G.n));
@@ -595,7 +595,29 @@ function initGame(){
 }
 function resetGame(){initGame();}
 function stopTmr(){if(G.tmr){G.cs=Math.round((performance.now()-G.tmrStart)/10);}clearInterval(G.tmr);G.tmr=null;}
-function set(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
+function pauseTmr(){
+  if(!G.tmr) return;
+  G.cs=Math.round((performance.now()-G.tmrStart)/10);
+  clearInterval(G.tmr); G.tmr=null; G.paused=true;
+}
+function resumeTmr(){
+  if(!G.paused||G.tmr) return;
+  G.paused=false;
+  G.tmrStart=performance.now()-G.cs*10;
+  G.tmr=setInterval(()=>{
+    G.cs=Math.round((performance.now()-G.tmrStart)/10);
+    const tot=G.cs, m=Math.floor(tot/6000), s=Math.floor((tot%6000)/100);
+    set('td',`${m}:${String(s).padStart(2,'0')}`);
+  },200);
+}
+// Modales qui pausent le chrono quand la partie est en cours
+const PAUSE_MODALS=['oRules','oRecords'];
+function show(id,on){
+  document.getElementById(id).classList.toggle('off',!on);
+  if(PAUSE_MODALS.includes(id)){
+    if(on) pauseTmr(); else resumeTmr();
+  }
+}
 
 /* ── SCENE ── */
 // Layout : peg 0 (I) et peg 2 (III) sur la rangée du haut, peg 1 (II) centré en bas
@@ -799,31 +821,44 @@ function loadRec(){
 
 /* ── JSONBIN ── */
 async function saveScore(mv,cs){
+  // 1. Lire le classement actuel
   const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
-  const d=await r.json();const recs=d.record?.records||{};
-  const lk=`level_${G.n}`;if(!recs[lk])recs[lk]=[];
+  const d=await r.json();
+  const recs=d.record?.records||{};
+  const lk=`level_${G.n}`;
+  if(!recs[lk]) recs[lk]=[];
 
+  const current=recs[lk]; // classement actuel, trié, max 50 entrées
+
+  // 2. Ce score est-il meilleur que le 5ème (ou si moins de 5 entrées, on rentre forcément) ?
+  const score5th = current.length>=5 ? current[4] : null;
+  const beatsTop5 = !score5th
+    || mv < score5th.moves
+    || (mv===score5th.moves && cs < (score5th.cs??score5th.secs*100));
+
+  if(!beatsTop5) return { entries: current, isNewBest: false };
+
+  // 3. On est dans le top 5 → fusionner et sauvegarder
   const entry={pseudo:G.pseudo,moves:mv,cs,ts:new Date().toISOString()};
   const byP={};
-  [...recs[lk],entry].forEach(e=>{
+  [...current,entry].forEach(e=>{
     if(!byP[e.pseudo]||e.moves<byP[e.pseudo].moves||(e.moves===byP[e.pseudo].moves&&(e.cs??e.secs*100)<(byP[e.pseudo].cs??byP[e.pseudo].secs*100)))
       byP[e.pseudo]=e;
   });
-
-  // isNewBest : l'entrée retenue pour ce pseudo après fusion est bien celle de cette partie
-  const savedEntry = byP[G.pseudo];
-  const isNewBest = savedEntry.ts === entry.ts;
-
   recs[lk]=Object.values(byP).sort((a,b)=>a.moves!==b.moves?a.moves-b.moves:(a.cs??a.secs*100)-(b.cs??b.secs*100)).slice(0,50);
+
   await fetch(`${JBIN}/b/${BIN_ID}`,{method:'PUT',
     headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
     body:JSON.stringify({records:recs})});
 
-  // On retourne le classement ET si ce score est un nouveau record personnel
+  // 4. isNewBest : l'entrée retenue pour ce pseudo est bien celle de cette partie
+  const savedEntry=byP[G.pseudo];
+  const isNewBest = savedEntry.ts===entry.ts;
+
   return { entries: recs[lk], isNewBest };
 }
 
-async function loadLB({entries, isNewBest} = {}){
+async function loadLB({entries,isNewBest}={}){
   const el=document.getElementById('lbList');
   try{
     if(!entries){
@@ -832,10 +867,9 @@ async function loadLB({entries, isNewBest} = {}){
       entries=(d.record?.records||{})[`level_${G.n}`]||[];
       isNewBest=false;
     }
-    // "Nouveau Record" : cette partie est un nouveau meilleur perso ET dans le top 5
-    const top5 = entries.slice(0,5);
-    const inTop5 = top5.some(e=>e.pseudo===G.pseudo);
-    document.getElementById('newrec').classList.toggle('off', !(isNewBest && inTop5));
+    // Afficher "Nouveau Record" seulement si ce score a été retenu ET est dans le top 5
+    const inTop5=entries.slice(0,5).some(e=>e.pseudo===G.pseudo);
+    document.getElementById('newrec').classList.toggle('off',!(isNewBest&&inTop5));
 
     if(!entries.length){el.innerHTML='<div class="ltxt">Aucun record encore…</div>';return;}
     el.innerHTML='';
