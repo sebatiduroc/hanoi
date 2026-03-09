@@ -24,13 +24,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:radial-gradient(ellipse at 20% 20%,rgba(201,168,76,.04) 0%,transparent 60%),
              radial-gradient(ellipse at 80% 80%,rgba(120,60,20,.06) 0%,transparent 60%);}
 
-/* ── EMBLÈME FANTÔME ── */
-#hanoiEmblem{
-  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:min(70vw,70vh);height:min(70vw,70vh);
-  opacity:.04;pointer-events:none;z-index:0;
-  filter:sepia(1) saturate(2) hue-rotate(10deg);
-}
 
 /* ── ROTATE OVERLAY ── */
 #rotateMsg{display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);
@@ -98,13 +91,6 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 }
 .penalty-notice.off{display:none;}
 
-/* ── FILIGRANE JEU ── */
-.gameEmblem{
-  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:min(60vw,60vh);height:min(60vw,60vh);
-  opacity:.15;pointer-events:none;z-index:0;
-  filter:sepia(1) saturate(2) hue-rotate(10deg);
-}
 #game{
   display:flex;flex-direction:column;
   width:100%;height:100dvh;
@@ -129,29 +115,32 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 .topbar .topmeta .accent{color:var(--gold-light);}
 
 /* ── MIDDLE — scène centrée ── */
-.midzone{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;}
-.scenewrap{display:flex;align-items:flex-end;justify-content:center;}
-#scene{position:relative;width:100%;}
+.midzone{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;}
+.scenewrap{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;}
 
-.plat{position:absolute;bottom:0;left:2%;right:2%;
-  background:linear-gradient(180deg,#3d3020,#1e1810 60%,#0e0c08);
-  border-top:2px solid var(--gold-dim);
-  box-shadow:0 6px 30px rgba(0,0,0,.8),inset 0 1px 0 rgba(201,168,76,.15);}
-.plat::after{content:'';position:absolute;left:0;right:0;
-  background:linear-gradient(180deg,#1a1510,#0a0806);
-  clip-path:polygon(0 0,100% 0,97% 100%,3% 100%);}
+/* Rangée du haut : tours I et III */
+.scene-row{position:relative;width:100%;}
+#scene-top{display:flex;justify-content:space-between;}
+#scene-bot{display:flex;justify-content:center;}
 
-.pcol{position:absolute;bottom:0;top:0;
-  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+.pcol{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
   border-radius:4px;border:2px solid transparent;
   transition:background .1s,border-color .1s;cursor:default;}
-.pcol-0{left:2%;width:30%;}
-.pcol-1{left:35%;width:30%;}
-.pcol-2{left:68%;width:30%;}
+.pcol-top{width:46%;}
+.pcol-bot{width:46%;}
 .pcol.pickable{cursor:grab;}
 .pcol.pickable:hover .rod{filter:brightness(1.15);}
 .pcol.candrop{background:rgba(201,168,76,.15);border-color:rgba(201,168,76,.6);box-shadow:0 0 20px rgba(201,168,76,.13) inset;cursor:copy;}
 .pcol.nodrop{background:rgba(180,40,40,.13);border-color:rgba(200,60,60,.45);}
+
+.plat-row{width:100%;flex-shrink:0;
+  background:linear-gradient(180deg,#3d3020,#1e1810 60%,#0e0c08);
+  border-top:2px solid var(--gold-dim);
+  box-shadow:0 6px 30px rgba(0,0,0,.8),inset 0 1px 0 rgba(201,168,76,.15);
+  position:relative;}
+.plat-row::after{content:'';position:absolute;left:0;right:0;
+  background:linear-gradient(180deg,#1a1510,#0a0806);
+  clip-path:polygon(0 0,100% 0,97% 100%,3% 100%);}
 
 .rod{flex-shrink:0;position:relative;
   background:linear-gradient(90deg,#4a3e2a,#7a6840 28%,#9a8850 50%,#7a6840 72%,#4a3e2a);
@@ -161,8 +150,9 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 .plbl{font-size:11px;color:var(--dim);letter-spacing:2px;
   position:absolute;bottom:-20px;left:0;right:0;text-align:center;}
 
-.dstack{position:absolute;bottom:0;display:flex;flex-direction:column-reverse;
-  align-items:center;width:100%;pointer-events:none;}
+.dstack{display:flex;flex-direction:column-reverse;
+  align-items:center;width:100%;pointer-events:none;
+  position:absolute;bottom:0;left:0;right:0;}
 .disk{border-radius:3px;flex-shrink:0;position:relative;}
 .disk.top{filter:brightness(1.12);}
 .disk.ghosted{visibility:hidden;}
@@ -245,8 +235,7 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 </head>
 <body>
 
-<!-- Emblème de Hanoï en arrière-plan fantôme -->
-<img id="hanoiEmblem" src="https://upload.wikimedia.org/wikipedia/commons/1/13/Emblem_of_Hanoi.svg" alt="" aria-hidden="true">
+
 
 <!-- Message rotation dynamique -->
 <div id="rotateMsg">
@@ -366,7 +355,6 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 
 <!-- ══ JEU ══ -->
 <div id="game" class="off">
-  <img class="gameEmblem" src="https://upload.wikimedia.org/wikipedia/commons/1/13/Emblem_of_Hanoi.svg" alt="" aria-hidden="true">
 
   <div class="topbar">
     <div class="gtitle">Tours de Hanoï</div>
@@ -379,7 +367,12 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 
   <div class="midzone">
     <div class="scenewrap" id="sceneWrap">
-      <div id="scene"><div class="plat" id="plat"></div></div>
+      <!-- Rangée du haut : tours I (peg 0) et III (peg 2) -->
+      <div class="scene-row" id="scene-top"></div>
+      <div class="plat-row" id="plat-top"></div>
+      <!-- Rangée du bas : tour II (peg 1) centrée -->
+      <div class="scene-row" id="scene-bot"></div>
+      <div class="plat-row" id="plat-bot"></div>
     </div>
   </div>
 
@@ -442,72 +435,63 @@ document.addEventListener('fullscreenchange',()=>{
 
 /* ── DIMENSIONS ── */
 function computeDim(){
-  const wrap = document.getElementById('sceneWrap');
+  const wrap    = document.getElementById('sceneWrap');
   const midzone = document.querySelector('.midzone');
   const W = wrap.getBoundingClientRect().width;
 
-  // Hauteur disponible dans la midzone (entre topbar et botbar), avec marge
-  const availH = midzone.getBoundingClientRect().height - 32;
-
-  // On calcule diskH de façon à ce que tout tienne dans availH :
-  // sceneH = platH + rodH + 22
-  // rodH   = MAX_DISKS*(diskH+diskGap) + clearance  ≈ MAX_DISKS*(diskH+2) + diskH*0.7
-  // platH  ≈ diskH*0.85
-  // → diskH * (0.85 + 7*1 + 7*2/diskH + 0.7) + 22 ≤ availH
-  // Simplifié : diskH_max = (availH - 22) / (MAX_DISKS + 1.55 + MAX_DISKS*2/16)
-  const diskHfromH = Math.floor((availH - 22) / (MAX_DISKS + 1.55 + MAX_DISKS * 2 / 16));
-  const diskHfromW = Math.round(Math.min(24, Math.max(13, W * 0.046)));
-  DIM.diskH   = Math.max(10, Math.min(diskHfromH, diskHfromW));
-  DIM.diskGap = 2;
-  DIM.platH   = Math.round(DIM.diskH * 0.85);
+  // Hauteur disponible partagée entre 2 rangées (+ 2 plateformes + marges)
+  const availH = midzone.getBoundingClientRect().height - 20;
+  // Chaque rangée occupe la moitié moins la plateforme
+  // rowH = platH + rodH + labelH(20)
+  // diskH_max depuis H : availH/2 = diskH*(0.85 + MAX_DISKS + MAX_DISKS*2/16 + 0.7) + 20
+  const diskHfromH = Math.floor((availH / 2 - 20) / (MAX_DISKS + 1.55 + MAX_DISKS * 2 / 16));
+  // Chaque colonne occupe 46% de la largeur
+  const colW = W * 0.46;
+  const diskHfromW = Math.round(Math.min(28, Math.max(13, colW * 0.06)));
+  DIM.diskH    = Math.max(10, Math.min(diskHfromH, diskHfromW));
+  DIM.diskGap  = 2;
+  DIM.platH    = Math.round(DIM.diskH * 0.85);
   const clearance = Math.round(DIM.diskH * 0.7);
-  DIM.rodH    = MAX_DISKS * (DIM.diskH + DIM.diskGap) + clearance;
-  DIM.rodW    = Math.max(6, Math.round(W * 0.016));
-  DIM.diskMaxW = Math.round(W * 0.27);
-  DIM.diskMinW = Math.max(18, Math.round(W * 0.05));
+  DIM.rodH     = MAX_DISKS * (DIM.diskH + DIM.diskGap) + clearance;
+  DIM.rodW     = Math.max(6, Math.round(colW * 0.025));
+  DIM.diskMaxW = Math.round(colW * 0.88);
+  DIM.diskMinW = Math.max(18, Math.round(colW * 0.12));
 
-  const sceneH = DIM.platH + DIM.rodH + 22;
-  document.getElementById('scene').style.height = sceneH + 'px';
-  document.getElementById('sceneWrap').style.height = sceneH + 'px';
-  document.getElementById('sceneWrap').style.width = '100%';
-  document.getElementById('plat').style.height = DIM.platH + 'px';
+  const rowH = DIM.rodH + 20; // hauteur de la zone tours (sans plateforme)
+
+  // Appliquer hauteurs
+  ['scene-top','scene-bot'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.height = rowH + 'px';
+  });
+  ['plat-top','plat-bot'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.height = DIM.platH + 'px';
+  });
 
   let st = document.getElementById('dynStyle');
-  if(!st){st = document.createElement('style'); st.id = 'dynStyle'; document.head.appendChild(st);}
-  const fh  = Math.round(DIM.platH * 0.45);
+  if(!st){st=document.createElement('style');st.id='dynStyle';document.head.appendChild(st);}
+  const fh   = Math.round(DIM.platH * 0.45);
   const capW = Math.round(DIM.rodW * 1.5), capH = Math.round(DIM.rodW * 0.7);
   st.textContent = `
-    .plat::after{height:${fh}px;bottom:-${fh}px;}
+    .plat-row::after{height:${fh}px;bottom:-${fh}px;}
     .rod::before{width:${capW}px;height:${capH}px;top:-${Math.round(capH/2)}px;}
   `;
 }
 
 /* ── ORIENTATION ── */
-// gameActive = true → paysage requis ; false → portrait requis
-let gameActive = false;
-
 function lockOrientation(type){
-  // type: 'portrait-primary' | 'landscape-primary'
-  try{
-    if(screen.orientation && screen.orientation.lock){
-      screen.orientation.lock(type).catch(()=>{});
-    }
-  }catch(e){}
+  try{ if(screen.orientation&&screen.orientation.lock) screen.orientation.lock(type).catch(()=>{}); }catch(e){}
 }
 
 function checkOrientation(){
   const isPhone=('ontouchstart' in window)&&Math.min(screen.width,screen.height)<600;
   if(!isPhone){ document.getElementById('rotateMsg').style.display='none'; return; }
-  const isPortrait = window.innerHeight > window.innerWidth;
-  const needPortrait = !gameActive;   // menu → portrait
-  const needLandscape = gameActive;   // jeu  → paysage
-  const wrong = (needPortrait && !isPortrait) || (needLandscape && isPortrait);
-  const msg = document.getElementById('rotateMsg');
-  const txt = document.getElementById('rotateTxt');
-  if(wrong){
-    txt.innerHTML = needLandscape
-      ? 'Veuillez tourner<br>votre appareil<br>en mode paysage'
-      : 'Veuillez tourner<br>votre appareil<br>en mode portrait';
+  const isPortrait=window.innerHeight>window.innerWidth;
+  const msg=document.getElementById('rotateMsg');
+  const txt=document.getElementById('rotateTxt');
+  if(!isPortrait){
+    txt.innerHTML='Veuillez tourner<br>votre appareil<br>en mode portrait';
     msg.style.display='flex';
   } else {
     msg.style.display='none';
@@ -525,7 +509,6 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{
 
 /* ── SETUP ── */
 window.onload=()=>{
-  gameActive=false;
   lockOrientation('portrait-primary');
   setLvl(5);
   checkOrientation();
@@ -569,15 +552,13 @@ function startGame(){
 }
 
 function _doStartGame(){
-  gameActive=true;
-  lockOrientation('landscape-primary');
+  lockOrientation('portrait-primary');
   show('oSetup',false);show('game',true);
   checkOrientation();
   initGame();
 }
 function goMenu(){
   stopTmr();cancelDrag();
-  gameActive=false;
   lockOrientation('portrait-primary');
   show('oWin',false);show('oRules',false);show('game',false);show('oSetup',true);
   checkOrientation();
@@ -618,13 +599,23 @@ function stopTmr(){if(G.tmr){G.cs=Math.round((performance.now()-G.tmrStart)/10);
 function set(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
 
 /* ── SCENE ── */
+// Layout : peg 0 (I) et peg 2 (III) sur la rangée du haut, peg 1 (II) centré en bas
+const PEG_ROW = [0, 1, 0]; // peg i → row index (0=top, 1=bot)
+
 function buildScene(){
-  const scene=document.getElementById('scene');
-  scene.querySelectorAll('.pcol').forEach(e=>e.remove());
+  const rowEls = [
+    document.getElementById('scene-top'),
+    document.getElementById('scene-bot')
+  ];
+  rowEls.forEach(r=>{ r.innerHTML=''; r.style.display='flex'; });
+  rowEls[0].style.justifyContent = 'space-between';
+  rowEls[1].style.justifyContent = 'center';
+
   for(let i=0;i<3;i++){
     const col=document.createElement('div');
-    col.className=`pcol pcol-${i}`;col.id=`c${i}`;
-    col.style.bottom=DIM.platH+'px';
+    col.className='pcol '+(PEG_ROW[i]===0?'pcol-top':'pcol-bot');
+    col.id=`c${i}`;
+    col.style.height = DIM.rodH + 'px';
     const rod=document.createElement('div');rod.className='rod';
     rod.style.width=DIM.rodW+'px';rod.style.height=DIM.rodH+'px';
     const stack=document.createElement('div');stack.className='dstack';stack.id=`s${i}`;
@@ -633,7 +624,7 @@ function buildScene(){
     col.appendChild(rod);col.appendChild(stack);col.appendChild(lbl);
     col.addEventListener('mousedown',e=>{if(e.button!==0)return;e.preventDefault();onColDown(i,e.clientX,e.clientY,'mouse');});
     col.addEventListener('touchstart',e=>{e.preventDefault();onColDown(i,e.touches[0].clientX,e.touches[0].clientY,'touch');},{passive:false});
-    scene.appendChild(col);
+    rowEls[PEG_ROW[i]].appendChild(col);
   }
   refreshCols();
 }
@@ -698,7 +689,13 @@ function onDocTouchEnd(e){if(!G.drag)return;endDragListeners();const t=e.changed
 function endDragListeners(){document.removeEventListener('mousemove',onDocMove);document.removeEventListener('mouseup',onDocUp);document.removeEventListener('touchmove',onDocTouchMove);document.removeEventListener('touchend',onDocTouchEnd);}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&G.drag)cancelDrag();});
 function colAt(cx,cy){
-  for(let i=0;i<3;i++){const r=document.getElementById(`c${i}`).getBoundingClientRect();if(cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom)return i;}
+  for(let i=0;i<3;i++){
+    const el=document.getElementById(`c${i}`);
+    if(!el) continue;
+    const r=el.getBoundingClientRect();
+    // Zone élargie verticalement pour inclure la plateforme
+    if(cx>=r.left&&cx<=r.right&&cy>=r.top-DIM.platH&&cy<=r.bottom+DIM.platH+20)return i;
+  }
   return -1;
 }
 
