@@ -783,7 +783,7 @@ async function showWin(penaltyTour2){
   // "Nouveau Record" basé uniquement sur le top 5 JSONbin — masqué jusqu'au retour
   document.getElementById('newrec').classList.add('off');
 
-  saveScore(mv, cs).then(updatedEntries => loadLB(updatedEntries)).catch(()=>loadLB(null));
+  saveScore(mv, cs).then(result => loadLB(result)).catch(()=>loadLB());
 }
 
 function loadRec(){
@@ -802,6 +802,17 @@ async function saveScore(mv,cs){
   const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
   const d=await r.json();const recs=d.record?.records||{};
   const lk=`level_${G.n}`;if(!recs[lk])recs[lk]=[];
+
+  // Score précédent de ce pseudo (s'il existe)
+  const prevEntry = recs[lk].find(e=>e.pseudo===G.pseudo);
+  const prevMv  = prevEntry ? prevEntry.moves : null;
+  const prevCs  = prevEntry ? (prevEntry.cs??prevEntry.secs*100) : null;
+
+  // Cette partie est-elle meilleure que l'ancienne entrée du pseudo ?
+  const isNewBest = !prevEntry
+    || mv < prevMv
+    || (mv === prevMv && cs < prevCs);
+
   const entry={pseudo:G.pseudo,moves:mv,cs,ts:new Date().toISOString()};
   const byP={};
   [...recs[lk],entry].forEach(e=>{
@@ -812,21 +823,24 @@ async function saveScore(mv,cs){
   await fetch(`${JBIN}/b/${BIN_ID}`,{method:'PUT',
     headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
     body:JSON.stringify({records:recs})});
-  return recs[lk]; // retourne le classement mis à jour
+
+  // On retourne le classement ET si ce score est un nouveau record personnel
+  return { entries: recs[lk], isNewBest };
 }
-async function loadLB(updatedEntries){
+
+async function loadLB({entries, isNewBest} = {}){
   const el=document.getElementById('lbList');
   try{
-    let entries = updatedEntries;
     if(!entries){
       const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
       const d=await r.json();
       entries=(d.record?.records||{})[`level_${G.n}`]||[];
+      isNewBest=false;
     }
-    // "Nouveau Record" : le pseudo est-il dans le top 5 ?
+    // "Nouveau Record" : cette partie est un nouveau meilleur perso ET dans le top 5
     const top5 = entries.slice(0,5);
     const inTop5 = top5.some(e=>e.pseudo===G.pseudo);
-    document.getElementById('newrec').classList.toggle('off', !inTop5);
+    document.getElementById('newrec').classList.toggle('off', !(isNewBest && inTop5));
 
     if(!entries.length){el.innerHTML='<div class="ltxt">Aucun record encore…</div>';return;}
     el.innerHTML='';
