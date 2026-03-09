@@ -804,7 +804,7 @@ async function showWin(penaltyTour2){
   set('wm',mv);set('wt',`${m}:${String(s).padStart(2,'0')}`);set('wmin',mn);set('lbLvl',G.n);
   show('oWin',true);
 
-  // localStorage uniquement pour afficher le record dans la barre de jeu
+  // localStorage pour usage futur éventuel
   const key=`hanoi_${G.n}`;
   const prev=JSON.parse(localStorage.getItem(key)||'null');
   const prevMv  = prev ? prev.mv : null;
@@ -812,27 +812,24 @@ async function showWin(penaltyTour2){
   const isBetter = !prev || mv < prevMv || (mv === prevMv && cs < prevCsP);
   if(isBetter){
     localStorage.setItem(key, JSON.stringify({mv, cs, csP: cs, who: G.pseudo}));
-    loadRec();
   }
 
   // "Nouveau Record" basé uniquement sur le top 5 JSONbin — masqué jusqu'au retour
   document.getElementById('newrec').classList.add('off');
 
-  saveScore(mv, cs).then(result => loadLB(result)).catch(()=>loadLB());
+  const savedN = G.n; // capturer le niveau maintenant avant tout changement async
+  saveScore(mv, cs, savedN).then(result => loadLB(result, savedN)).catch(()=>loadLB({}, savedN));
 }
 
 
-async function saveScore(mv,cs){
-  // 1. Lire le classement actuel
+async function saveScore(mv,cs,n){
   const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
   const d=await r.json();
   const recs=d.record?.records||{};
-  const lk=`level_${G.n}`;
+  const lk=`level_${n}`;
   if(!recs[lk]) recs[lk]=[];
+  const current=recs[lk];
 
-  const current=recs[lk]; // classement actuel, trié, max 50 entrées
-
-  // 2. Ce score est-il meilleur que le 5ème (ou si moins de 5 entrées, on rentre forcément) ?
   const score5th = current.length>=5 ? current[4] : null;
   const beatsTop5 = !score5th
     || mv < score5th.moves
@@ -840,7 +837,6 @@ async function saveScore(mv,cs){
 
   if(!beatsTop5) return { entries: current, isNewBest: false };
 
-  // 3. On est dans le top 5 → fusionner et sauvegarder
   const entry={pseudo:G.pseudo,moves:mv,cs,ts:new Date().toISOString()};
   const byP={};
   [...current,entry].forEach(e=>{
@@ -853,23 +849,20 @@ async function saveScore(mv,cs){
     headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
     body:JSON.stringify({records:recs})});
 
-  // 4. isNewBest : l'entrée retenue pour ce pseudo est bien celle de cette partie
   const savedEntry=byP[G.pseudo];
   const isNewBest = savedEntry.ts===entry.ts;
-
   return { entries: recs[lk], isNewBest };
 }
 
-async function loadLB({entries,isNewBest}={}){
+async function loadLB({entries,isNewBest}={}, n=G.n){
   const el=document.getElementById('lbList');
   try{
     if(!entries){
       const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
       const d=await r.json();
-      entries=(d.record?.records||{})[`level_${G.n}`]||[];
+      entries=(d.record?.records||{})[`level_${n}`]||[];
       isNewBest=false;
     }
-    // Afficher "Nouveau Record" seulement si ce score a été retenu ET est dans le top 5
     const inTop5=entries.slice(0,5).some(e=>e.pseudo===G.pseudo);
     document.getElementById('newrec').classList.toggle('off',!(isNewBest&&inTop5));
 
