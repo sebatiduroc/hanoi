@@ -182,14 +182,15 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 .sval{font-size:clamp(20px,5.5vw,28px);color:var(--gold);font-weight:600;display:block;line-height:1;}
 .recbadge{font-size:10px;color:var(--gold-dim);display:block;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ctrlrow{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.hintrow{text-align:center;padding:4px 0 2px;}
 .hintblock{flex:1;min-width:0;}
 .hint{font-size:11px;color:var(--dim);letter-spacing:1px;line-height:1.5;}
 .esckey{font-size:10px;color:var(--gold-dim);letter-spacing:1px;opacity:0;transition:opacity .3s;height:14px;}
 .esckey.show{opacity:1;}
-.hbtns{display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+.hbtns{display:flex;gap:5px;flex-shrink:0;flex-wrap:nowrap;justify-content:space-between;}
 .btns{background:transparent;border:1px solid var(--stone2);color:var(--dim);
   font-family:'Cinzel',serif;font-size:11px;letter-spacing:1px;
-  padding:7px 12px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+  padding:7px 4px;cursor:pointer;transition:all .2s;white-space:nowrap;flex:1;text-align:center;}
 .btns:hover{border-color:var(--gold-dim);color:var(--text);}
 .btns.rules-btn{border-color:var(--gold-dim);color:var(--gold-dim);}
 .btns.rules-btn:hover{border-color:var(--gold);color:var(--gold);}
@@ -263,9 +264,10 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
     </div>
     <div class="preview" id="prev"></div>
     <div class="minhint" id="mhint">Minimum : 31 coups</div>
-    <!-- Records 1/3 · Jouer 2/3 -->
+    <!-- Records 1/4 · Plein écran 1/4 · Jouer 2/4 -->
     <div class="setup-btnrow">
       <button class="btnp ghost btn-records" onclick="openRecords()" title="Tableau des records">🏆</button>
+      <button class="btnp ghost btn-records" onclick="toggleFullscreen()" id="fsBtnMenu" title="Plein écran">⛶</button>
       <button class="btnp btn-start" onclick="startGame()">⚔ Jouer</button>
     </div>
   </div>
@@ -382,18 +384,15 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
       <div class="sb"><span class="slbl">Temps</span><span class="sval" id="td">0:00</span></div>
       <div class="sb"><span class="slbl">Record</span><span class="sval" id="rval">—</span><span class="recbadge" id="rby"></span></div>
     </div>
-    <div class="ctrlrow">
-      <div class="hintblock">
-        <div class="hint" id="hintLine">Glissez le disque du dessus vers une autre tour</div>
-        <div class="esckey" id="escHint">Échap pour annuler</div>
-      </div>
-      <div class="hbtns">
-        <button class="btns trophy-btn" onclick="openRecords()" title="Tableau des records">🏆</button>
-        <button class="btns" onclick="toggleFullscreen()" id="fsBtn" title="Plein écran">⛶</button>
-        <button class="btns rules-btn" onclick="show('oRules',true)">? Règles</button>
-        <button class="btns" onclick="resetGame()">↺ Reset</button>
-        <button class="btns" onclick="goMenu()">Menu</button>
-      </div>
+    <div class="hintrow">
+      <div class="hint" id="hintLine">Glissez le disque du dessus vers une autre tour</div>
+      <div class="esckey" id="escHint">Échap pour annuler</div>
+    </div>
+    <div class="hbtns">
+      <button class="btns trophy-btn" onclick="openRecords()" title="Tableau des records">🏆</button>
+      <button class="btns rules-btn" onclick="show('oRules',true)">? Règles</button>
+      <button class="btns" onclick="resetGame()">↺ Reset</button>
+      <button class="btns" onclick="goMenu()">Menu</button>
     </div>
   </div>
 
@@ -421,7 +420,7 @@ function toggleFullscreen(){
 }
 
 document.addEventListener('fullscreenchange',()=>{
-  const btn=document.getElementById('fsBtn');
+  const btn=document.getElementById('fsBtnMenu');
   if(btn){
     btn.textContent = document.fullscreenElement ? '✕' : '⛶';
     btn.title = document.fullscreenElement ? 'Quitter le plein écran' : 'Plein écran';
@@ -732,7 +731,19 @@ async function showWin(penaltyTour2){
   if(penaltyTour2) subs.push('Tour II');
   if(excessMoves>0) subs.push(`${excessMoves} coup${excessMoves>1?'s':''} excédentaire${excessMoves>1?'s':''}`);
   set('winSub', subs.length ? '∴ '+subs.join(' · ')+' ∴' : '∴ Les Dieux Approuvent ∴');
-  document.getElementById('winStars').textContent = penaltyTour2 ? '★ ★ ☆' : (excessMoves>0 ? '★ ★ ✦' : '★ ★ ★');
+
+  // Barème étoiles :
+  // ★★★ = minimum exact, tour III
+  // ★★☆ = minimum exact, tour II  OU  quelques coups en trop (<= 2), tour III
+  // ★☆☆ = coups excédentaires, tour III  OU  minimum exact tour II
+  // ☆☆☆ = coups excédentaires + tour II
+  let stars;
+  if(!penaltyTour2 && excessMoves===0)          stars='★ ★ ★';
+  else if(!penaltyTour2 && excessMoves<=2)       stars='★ ★ ☆';
+  else if(!penaltyTour2 && excessMoves>2)        stars='★ ☆ ☆';
+  else if(penaltyTour2  && excessMoves===0)      stars='★ ★ ☆';
+  else                                            stars='☆ ☆ ☆';
+  document.getElementById('winStars').textContent = stars;
 
   document.getElementById('penaltyNotice').classList.toggle('off', !penaltyTour2);
 
@@ -758,26 +769,21 @@ async function showWin(penaltyTour2){
   set('wm',mv);set('wt',`${m}:${String(s).padStart(2,'0')}`);set('wmin',mn);set('lbLvl',G.n);
   show('oWin',true);
 
+  // localStorage uniquement pour afficher le record dans la barre de jeu
   const key=`hanoi_${G.n}`;
   const prev=JSON.parse(localStorage.getItem(key)||'null');
-  // prev.csP = temps pénalisé (nouveau format)
-  // prev.cs  = peut être brut (ancien format) — on l'ignore si prev.csP existe
   const prevMv  = prev ? prev.mv : null;
   const prevCsP = prev ? (prev.csP ?? prev.cs) : null;
-
-  // isRec : meilleur si moins de coups, ou même coups avec temps pénalisé plus court
-  const isRec = !prev
-    || mv < prevMv
-    || (mv === prevMv && cs < prevCsP);
-
-  // On ne sauvegarde que si c'est réellement un record
-  if(isRec){
+  const isBetter = !prev || mv < prevMv || (mv === prevMv && cs < prevCsP);
+  if(isBetter){
     localStorage.setItem(key, JSON.stringify({mv, cs, csP: cs, who: G.pseudo}));
     loadRec();
   }
-  document.getElementById('newrec').classList.toggle('off', !isRec);
 
-  saveScore(mv,cs).then(()=>loadLB()).catch(()=>loadLB());
+  // "Nouveau Record" basé uniquement sur le top 5 JSONbin — masqué jusqu'au retour
+  document.getElementById('newrec').classList.add('off');
+
+  saveScore(mv, cs).then(updatedEntries => loadLB(updatedEntries)).catch(()=>loadLB(null));
 }
 
 function loadRec(){
@@ -806,13 +812,22 @@ async function saveScore(mv,cs){
   await fetch(`${JBIN}/b/${BIN_ID}`,{method:'PUT',
     headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
     body:JSON.stringify({records:recs})});
+  return recs[lk]; // retourne le classement mis à jour
 }
-async function loadLB(){
+async function loadLB(updatedEntries){
   const el=document.getElementById('lbList');
   try{
-    const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
-    const d=await r.json();
-    const entries=(d.record?.records||{})[`level_${G.n}`]||[];
+    let entries = updatedEntries;
+    if(!entries){
+      const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
+      const d=await r.json();
+      entries=(d.record?.records||{})[`level_${G.n}`]||[];
+    }
+    // "Nouveau Record" : le pseudo est-il dans le top 5 ?
+    const top5 = entries.slice(0,5);
+    const inTop5 = top5.some(e=>e.pseudo===G.pseudo);
+    document.getElementById('newrec').classList.toggle('off', !inTop5);
+
     if(!entries.length){el.innerHTML='<div class="ltxt">Aucun record encore…</div>';return;}
     el.innerHTML='';
     entries.slice(0,10).forEach((e,i)=>{
