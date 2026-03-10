@@ -44,6 +44,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .box::after {content:'✦';position:absolute;bottom:10px;right:10px;color:var(--gold-dim);font-size:11px;}
 .mtitle{font-family:'Cinzel Decorative',serif;font-size:clamp(20px,5vw,28px);color:var(--gold);margin-bottom:4px;letter-spacing:2px;}
 .msub{font-size:11px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;margin-bottom:24px;}
+.setup-credit{font-family:'Cinzel',serif;font-size:10px;color:var(--dim);letter-spacing:2px;text-align:center;margin-top:14px;}
 .mlabel{font-size:11px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;display:block;text-align:left;}
 input[type=text]{width:100%;background:var(--stone);border:1px solid var(--gold-dim);
   color:var(--text);font-family:'Cinzel',serif;font-size:16px;padding:11px 14px;
@@ -271,6 +272,7 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
       <button class="btnp ghost btn-records" onclick="toggleFullscreen()" id="fsBtnMenu" title="Plein écran">⛶</button>
       <button class="btnp btn-start" onclick="startGame()">⚔ Jouer</button>
     </div>
+    <div class="setup-credit">Un jeu de Sébastien Dumortier</div>
   </div>
 </div>
 
