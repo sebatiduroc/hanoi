@@ -875,19 +875,27 @@ async function saveScore(mv,cs,n){
   const current=recs[lk];
 
   const score5th = current.length>=5 ? current[4] : null;
-  const beatsTop5 = !score5th
-    || mv < score5th.moves
-    || (mv===score5th.moves && cs < (score5th.cs??score5th.secs*100));
+  const beatsTop5 = !score5th || cs < (score5th.cs??score5th.secs*100);
 
   if(!beatsTop5) return { entries: current, isNewBest: false };
 
   const entry={pseudo:G.pseudo,moves:mv,cs,ts:new Date().toISOString()};
   const byP={};
   [...current,entry].forEach(e=>{
-    if(!byP[e.pseudo]||e.moves<byP[e.pseudo].moves||(e.moves===byP[e.pseudo].moves&&(e.cs??e.secs*100)<(byP[e.pseudo].cs??byP[e.pseudo].secs*100)))
+    const eCs=e.cs??e.secs*100;
+    const bCs=byP[e.pseudo]?(byP[e.pseudo].cs??byP[e.pseudo].secs*100):Infinity;
+    if(!byP[e.pseudo]
+      || eCs < bCs
+      || (eCs===bCs && e.moves < byP[e.pseudo].moves)
+      || (eCs===bCs && e.moves===byP[e.pseudo].moves && e.ts < byP[e.pseudo].ts))
       byP[e.pseudo]=e;
   });
-  recs[lk]=Object.values(byP).sort((a,b)=>a.moves!==b.moves?a.moves-b.moves:(a.cs??a.secs*100)-(b.cs??b.secs*100)).slice(0,50);
+  recs[lk]=Object.values(byP).sort((a,b)=>{
+    const csA=a.cs??a.secs*100, csB=b.cs??b.secs*100;
+    if(csA!==csB) return csA-csB;
+    if(a.moves!==b.moves) return a.moves-b.moves;
+    return a.ts<b.ts?-1:1;
+  }).slice(0,50);
 
   await fetch(`${JBIN}/b/${BIN_ID}`,{method:'PUT',
     headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
