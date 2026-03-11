@@ -53,6 +53,7 @@ input[type=text]{width:100%;background:var(--stone);border:1px solid var(--gold-
   outline:none;margin-bottom:18px;transition:border-color .2s;}
 input:focus{border-color:var(--gold);}
 @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+.pseudo-warn{font-size:11px;color:#e0a040;letter-spacing:1px;line-height:1.5;margin-top:-12px;margin-bottom:12px;padding:7px 10px;border:1px solid rgba(224,160,64,.35);background:rgba(224,160,64,.06);display:none;}
 @keyframes blinkRed{0%,100%{border-color:#c0392b;box-shadow:0 0 0 2px rgba(192,57,43,0)}50%{border-color:#e74c3c;box-shadow:0 0 0 2px rgba(192,57,43,.5)}}
 input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!important;}
 .lvlbtns{display:flex;gap:6px;justify-content:center;margin-bottom:18px;flex-wrap:nowrap;}
@@ -269,7 +270,9 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
     <div class="msub">∴ Temple des Disques Sacrés ∴</div>
     <label class="mlabel">Votre nom d'explorateur</label>
     <input type="text" id="inp" placeholder="Entrez votre pseudo…" maxlength="20"
-           onkeydown="if(event.key==='Enter')startGame()">
+           onkeydown="if(event.key==='Enter')startGame()"
+           oninput="checkPseudo(this.value)">
+    <div class="pseudo-warn" id="pseudoWarn">⚠ Pseudo déjà utilisé. Si ce n'est pas vous, mieux vaut en choisir un autre.</div>
     <label class="mlabel">Niveau de difficulté</label>
     <div class="lvlbtns">
       <button class="lb" onclick="setLvl(3)">III</button>
@@ -314,7 +317,7 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
     </div>
     <div class="recnew off" id="newrec" id="newrec"></div>
     <div class="lbsect">
-      <div class="lbtitle">Tableau des Sages — Niveau <span id="lbLvl">5</span></div>
+      <div class="lbtitle">Tableau des <span id="lbLvl">Découvreurs</span></div>
       <div id="lbList"><div class="ltxt">Chargement…</div></div>
     </div>
     <div class="div"><span>✦</span></div>
@@ -556,11 +559,26 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{
 },100));
 
 /* ── SETUP ── */
+let knownPseudos = new Set();
+
 window.onload=()=>{
   lockOrientation('portrait-primary');
   setLvl(5);
   checkOrientation();
+  fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}})
+    .then(r=>r.json())
+    .then(d=>{
+      const recs=d.record?.records||{};
+      Object.values(recs).forEach(list=>list.forEach(e=>{
+        if(e.pseudo) knownPseudos.add(e.pseudo.toLowerCase());
+      }));
+    }).catch(()=>{});
 };
+
+function checkPseudo(val){
+  const warn=document.getElementById('pseudoWarn');
+  warn.style.display = (val.trim().length>0 && knownPseudos.has(val.trim().toLowerCase())) ? 'block' : 'none';
+}
 
 function set(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
 function setLvl(n){
@@ -850,7 +868,7 @@ async function showWin(penaltyTour2){
   }
 
   const m=Math.floor(cs/6000), s=Math.floor((cs%6000)/100);
-  set('wm',mv);set('wt',`${m}:${String(s).padStart(2,'0')}`);set('wmin',mn);set('lbLvl',G.n);
+  set('wm',mv);set('wt',`${m}:${String(s).padStart(2,'0')}`);set('wmin',mn);set('lbLvl',{3:'Curieux',4:'Aventuriers',5:'Découvreurs',6:'Explorateurs',7:'Pionniers'}[G.n]||G.n);
   show('oWin',true);
 
   const key=`hanoi_${G.n}`;
@@ -941,7 +959,7 @@ async function loadLB({entries,isNewBest}={}, n=G.n){
       row.className='lbrow'+(e.pseudo===G.pseudo?' me':'');
       const tot=e.cs??((e.secs??0)*100);
       const mm=Math.floor(tot/6000),ss=Math.floor((tot%6000)/100),cc=tot%100;
-      row.innerHTML=`<span class="lbrnk">${i+1}</span><span class="lbnm">${esc(e.pseudo)}<span class="lbtitl"> · ${titre(n)}</span></span><span class="lbsc">${e.moves} coups · ${mm}:${String(ss).padStart(2,'0')}.${String(cc).padStart(2,'0')}</span>`;
+      row.innerHTML=`<span class="lbrnk">${i+1}</span><span class="lbnm">${esc(e.pseudo)}</span><span class="lbsc">${e.moves} coups · ${mm}:${String(ss).padStart(2,'0')}.${String(cc).padStart(2,'0')}</span>`;
       el.appendChild(row);
     });
   }catch{el.innerHTML='<div class="etxt">Classement indisponible</div>';}
@@ -967,7 +985,7 @@ function openRecords(){
         const lk=`level_${n}`;
         const entries=(recs[lk]||[]).slice(0,5);
         html+=`<div class="lb-level-block">`;
-        html+=`<div class="lb-level-title">${['III','IV','V','VI','VII'][n-3]} disques — min. ${(1<<n)-1} coups</div>`;
+        html+=`<div class="lb-level-title">${{3:'Curieux',4:'Aventuriers',5:'Découvreurs',6:'Explorateurs',7:'Pionniers'}[n]} — min. ${(1<<n)-1} coups</div>`;
         if(!entries.length){
           html+=`<div class="ltxt">Aucun record</div>`;
         } else {
@@ -976,7 +994,7 @@ function openRecords(){
             const meClass=(e.pseudo===G.pseudo)?' me':'';
             html+=`<div class="lbrow${meClass}">
               <span class="lbrnk">${i+1}</span>
-              <span class="lbnm">${esc(e.pseudo)}<span class="lbtitl"> · ${titre(n)}</span></span>
+              <span class="lbnm">${esc(e.pseudo)}</span>
               <span class="lbsc">${e.moves} coups · ${fmtCs(tot)}</span>
             </div>`;
           });
