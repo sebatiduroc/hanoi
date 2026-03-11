@@ -430,10 +430,10 @@ async function sendRecordEmail(pseudo, n, mv, cs) {
   const cc  = cs % 100;
   const temps = `${m}:${String(s).padStart(2,'0')}.${String(cc).padStart(2,'0')}`;
   const score = `${mv} coups en ${temps} (min. théorique : ${mn})`;
-  const catégorie = `Niveau ${n} disque${n>1?'s':''}`;
+  const categorie = `Niveau ${n} disque${n>1?'s':''}`;
   const date = new Date().toLocaleString('fr-FR');
   await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-    pseudo, catégorie, score, date
+    pseudo, categorie, score, date
   });
 }
 const DC=['#e74c3c','#e67e22','#f1c40f','#2ecc71','#3498db','#9b59b6','#ec407a'];
