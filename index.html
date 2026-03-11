@@ -368,7 +368,7 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 <div class="overlay off" id="oRecords">
   <div class="box">
     <div class="mtitle">Tableau des Sages</div>
-    <div class="msub">∴ Les Meilleurs Explorateurs ∴</div>
+    <div class="msub">∴ Des 30 Derniers Jours ∴</div>
     <div id="globalLbContent"><div class="lb-loading">Chargement…</div></div>
     <div class="div"><span>✦</span></div>
     <button class="btnp" onclick="show('oRecords',false)">Fermer</button>
@@ -658,8 +658,9 @@ window.onload=()=>{
   const savedPseudo = localStorage.getItem('hanoi_pseudo');
   if(savedPseudo) document.getElementById('inp').value = savedPseudo;
 
-  // Charge les pseudos existants depuis jsonbin.io, PUIS vérifie le pseudo sauvegardé
-  // (l'ordre est important : knownPseudos doit être peuplé avant checkPseudo)
+  // Charge les pseudos existants depuis jsonbin.io, PUIS :
+  // 1. peuple knownPseudos pour la vérification de pseudo
+  // 2. purge les scores de plus de 30 jours et réécrit le bin si nécessaire
   fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}})
     .then(r=>r.json())
     .then(d=>{
@@ -668,6 +669,21 @@ window.onload=()=>{
         if(e.pseudo) knownPseudos.add(e.pseudo.toLowerCase());
       }));
       if(savedPseudo) checkPseudo(savedPseudo);
+
+      // Purge des scores de plus de 30 jours
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      let purged = false;
+      Object.keys(recs).forEach(lk=>{
+        const before = recs[lk].length;
+        recs[lk] = recs[lk].filter(e => e.ts && e.ts >= cutoff);
+        if(recs[lk].length !== before) purged = true;
+      });
+      // Ne réécrit le bin que si au moins un score a été supprimé
+      if(purged){
+        fetch(`${JBIN}/b/${BIN_ID}`,{method:'PUT',
+          headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
+          body:JSON.stringify({records:recs})}).catch(()=>{});
+      }
     }).catch(()=>{});
 };
 
