@@ -231,6 +231,7 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 .lbrow:first-child{border-top:1px solid rgba(201,168,76,.06);}
 .lbrnk{color:var(--gold-dim);width:22px;}
 .lbnm{color:var(--text);flex:1;margin-left:6px;}
+.lbtitl{color:var(--gold-dim);font-size:10px;letter-spacing:1px;}
 .lbsc{color:var(--gold);text-align:right;white-space:nowrap;}
 .lbrow.me{background:rgba(201,168,76,.07);}
 .ltxt{font-size:11px;color:var(--dim);letter-spacing:2px;text-align:center;padding:10px;}
@@ -311,7 +312,7 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
       <div class="wstat"><span class="wval" id="wmin">—</span><span class="wlbl">Minimum</span></div>
       <div class="wstat off" id="wPenStat"><span class="wval" id="wpen">—</span><span class="wlbl">Pénalité</span></div>
     </div>
-    <div class="recnew off" id="newrec">✦ Bravo ! ✦</div>
+    <div class="recnew off" id="newrec" id="newrec"></div>
     <div class="lbsect">
       <div class="lbtitle">Tableau des Sages — Niveau <span id="lbLvl">5</span></div>
       <div id="lbList"><div class="ltxt">Chargement…</div></div>
@@ -422,6 +423,8 @@ const JBIN   ='https://api.jsonbin.io/v3';
 
 const EMAILJS_SERVICE  = 'service_twe8h8j';
 const EMAILJS_TEMPLATE = 'template_3x8awnc';
+const TITRES = {3:'Curieux',4:'Aventurier',5:'Découvreur',6:'Explorateur',7:'Pionnier'};
+function titre(n){ return TITRES[n] || `Niveau ${n}`; }
 
 async function sendRecordEmail(pseudo, n, mv, cs, newRank, total, prevRank) {
   const mn  = (1 << n) - 1;
@@ -430,7 +433,7 @@ async function sendRecordEmail(pseudo, n, mv, cs, newRank, total, prevRank) {
   const cc  = cs % 100;
   const temps = `${m}:${String(s).padStart(2,'0')}.${String(cc).padStart(2,'0')}`;
   const score = `${mv} coups en ${temps} (min. theorique : ${mn})`;
-  const categorie = `Niveau ${n} disque${n>1?'s':''}`;
+  const categorie = titre(n);
   const date = new Date().toLocaleString('fr-FR');
 
   const ordinal = r => r === 1 ? '1er' : `${r}e`;
@@ -929,6 +932,7 @@ async function loadLB({entries,isNewBest}={}, n=G.n){
     }
     const inTop5=entries.slice(0,5).some(e=>e.pseudo===G.pseudo);
     document.getElementById('newrec').classList.toggle('off',!(isNewBest&&inTop5));
+    if(isNewBest&&inTop5) document.getElementById('newrec').textContent = `✦ ${titre(n)} ✦`;
 
     if(!entries.length){el.innerHTML='<div class="ltxt">Aucun record encore…</div>';return;}
     el.innerHTML='';
@@ -937,7 +941,7 @@ async function loadLB({entries,isNewBest}={}, n=G.n){
       row.className='lbrow'+(e.pseudo===G.pseudo?' me':'');
       const tot=e.cs??((e.secs??0)*100);
       const mm=Math.floor(tot/6000),ss=Math.floor((tot%6000)/100),cc=tot%100;
-      row.innerHTML=`<span class="lbrnk">${i+1}</span><span class="lbnm">${esc(e.pseudo)}</span><span class="lbsc">${e.moves} coups · ${mm}:${String(ss).padStart(2,'0')}.${String(cc).padStart(2,'0')}</span>`;
+      row.innerHTML=`<span class="lbrnk">${i+1}</span><span class="lbnm">${esc(e.pseudo)}<span class="lbtitl"> · ${titre(n)}</span></span><span class="lbsc">${e.moves} coups · ${mm}:${String(ss).padStart(2,'0')}.${String(cc).padStart(2,'0')}</span>`;
       el.appendChild(row);
     });
   }catch{el.innerHTML='<div class="etxt">Classement indisponible</div>';}
@@ -972,7 +976,7 @@ function openRecords(){
             const meClass=(e.pseudo===G.pseudo)?' me':'';
             html+=`<div class="lbrow${meClass}">
               <span class="lbrnk">${i+1}</span>
-              <span class="lbnm">${esc(e.pseudo)}</span>
+              <span class="lbnm">${esc(e.pseudo)}<span class="lbtitl"> · ${titre(n)}</span></span>
               <span class="lbsc">${e.moves} coups · ${fmtCs(tot)}</span>
             </div>`;
           });
