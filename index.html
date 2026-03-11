@@ -420,27 +420,58 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 </div>
 
 <script>
+// ════════════════════════════════════════════════════════════════════════════
+// CONFIGURATION GÉNÉRALE
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── JSONBIN.IO ───────────────────────────────────────────────────────────────
+// Stockage en ligne des scores. Toutes les parties y sont enregistrées et lues.
+// API_KEY  : clé maître du compte jsonbin.io (ne pas divulguer)
+// BIN_ID   : identifiant unique du "bin" (conteneur de données)
+// JBIN     : URL de base de l'API jsonbin.io
 const API_KEY='$2a$10$KF8MxpCoz7EiaFpfywvUvel.9yrVRPB.gl670nIVTkj1qJ7MtVor6';
 const BIN_ID ='69aee540ae596e708f7126fb';
 const JBIN   ='https://api.jsonbin.io/v3';
 
-const EMAILJS_SERVICE  = 'service_twe8h8j';
-const EMAILJS_TEMPLATE = 'template_3x8awnc';
+// ── EMAILJS : identifiants du service d'envoi de mails ──────────────────────
+// À mettre à jour si vous changez de compte ou de template sur emailjs.com
+const EMAILJS_SERVICE  = 'service_twe8h8j';   // ID du service email (ex: Gmail)
+const EMAILJS_TEMPLATE = 'template_3x8awnc';  // ID du template de notification
+
+// ── TITRES PAR NIVEAU ────────────────────────────────────────────────────────
+// Associe chaque nombre de disques (3 à 7) à un titre affiché dans les tableaux
+// et dans le mail de notification (champ QUOI)
 const TITRES = {3:'Curieux',4:'Aventurier',5:'Découvreur',6:'Explorateur',7:'Pionnier'};
 function titre(n){ return TITRES[n] || `Niveau ${n}`; }
 
+// ── NOTIFICATION EMAIL ──────────────────────────────────────────────────────
+// Envoyé automatiquement quand un joueur améliore son meilleur score personnel.
+// Paramètres reçus depuis saveScore() :
+//   pseudo   : nom du joueur
+//   n        : nombre de disques (niveau)
+//   mv       : nombre de coups effectués
+//   cs       : temps en centièmes de seconde (déjà pénalisé)
+//   newRank  : nouveau rang du joueur dans le classement
+//   total    : nombre total de joueurs classés
+//   prevRank : rang précédent (null si première entrée au classement)
+//
+// Variables envoyées au template EmailJS :
+//   pseudo, categorie, score, date, ou, comment
 async function sendRecordEmail(pseudo, n, mv, cs, newRank, total, prevRank) {
-  const mn  = (1 << n) - 1;
+  const mn  = (1 << n) - 1; // nombre minimum théorique de coups
   const m   = Math.floor(cs / 6000);
   const s   = Math.floor((cs % 6000) / 100);
   const cc  = cs % 100;
   const temps = `${m}:${String(s).padStart(2,'0')}.${String(cc).padStart(2,'0')}`;
-  const score = `${mv} coups en ${temps} (min. theorique : ${mn})`;
-  const categorie = titre(n);
-  const date = new Date().toLocaleString('fr-FR');
+  const score    = `${mv} coups en ${temps} (min. theorique : ${mn})`;
+  const categorie = titre(n); // ex: "Découvreur"
+  const date     = new Date().toLocaleString('fr-FR');
 
+  // Formate un rang en "1er", "2e", "3e"...
   const ordinal = r => r === 1 ? '1er' : `${r}e`;
-  const ou = `${ordinal(newRank)} sur ${total}`;
+  const ou = `${ordinal(newRank)} sur ${total}`; // ex: "2e sur 5"
+
+  // Message d'évolution du rang
   let comment;
   if (prevRank === null)         comment = 'Nouvel entrant';
   else if (prevRank === newRank) comment = 'Record ameliore (meme rang)';
@@ -450,15 +481,46 @@ async function sendRecordEmail(pseudo, n, mv, cs, newRank, total, prevRank) {
     pseudo, categorie, score, date, ou, comment
   });
 }
+// ── COULEURS DES DISQUES ─────────────────────────────────────────────────────
+// Une couleur par rang de disque (du plus petit au plus grand).
+// Modifiable librement ; l'ordre correspond aux disques 1 à 7.
 const DC=['#e74c3c','#e67e22','#f1c40f','#2ecc71','#3498db','#9b59b6','#ec407a'];
-const MAX_DISKS=7;
+const MAX_DISKS=7; // nombre maximum de disques supporté par le jeu
 
+// ── ÉTAT GLOBAL DE LA PARTIE (objet G) ───────────────────────────────────────
+// G est l'unique source de vérité pour l'état en cours.
+//   pseudo   : nom du joueur
+//   n        : nombre de disques du niveau en cours
+//   pegs     : tableau de 3 tableaux représentant les 3 tours (chaque valeur = taille du disque)
+//   moves    : nombre de coups effectués
+//   cs       : temps écoulé en centièmes de seconde
+//   tmrStart : timestamp de départ du chrono (performance.now())
+//   tmr      : référence de l'intervalle du chrono (null si arrêté)
+//   drag     : disque en cours de déplacement (null si aucun)
+//   paused   : vrai si le chrono est suspendu (modal règles ou records ouvert)
 let G={pseudo:'',n:5,pegs:[[],[],[]],moves:0,cs:0,tmrStart:0,tmr:null,drag:null,paused:false};
+
+// ── DIMENSIONS CALCULÉES DYNAMIQUEMENT (objet DIM) ───────────────────────────
+// Recalculées à chaque redimensionnement via computeDim().
+// Toutes les valeurs sont en pixels.
+//   platH    : hauteur de la plateforme (socle)
+//   rodH     : hauteur du mât
+//   rodW     : largeur du mât
+//   diskH    : hauteur d'un disque
+//   diskGap  : espacement vertical entre disques
+//   diskMaxW : largeur du plus grand disque
+//   diskMinW : largeur du plus petit disque
 let DIM={platH:16,rodH:100,rodW:10,diskH:14,diskGap:2,diskMaxW:150,diskMinW:28};
 
-/* ── PLEIN ÉCRAN ── */
+// ════════════════════════════════════════════════════════════════════════════
+// PLEIN ÉCRAN
+// ════════════════════════════════════════════════════════════════════════════
+// Le jeu tente de passer en plein écran au lancement.
+// _pendingGameStart permet de différer le démarrage réel jusqu'à ce que
+// le navigateur ait confirmé l'entrée en plein écran (événement asynchrone).
 let _pendingGameStart = false;
 
+// Bascule entre plein écran et mode fenêtré.
 function toggleFullscreen(){
   if(!document.fullscreenElement){
     document.documentElement.requestFullscreen().catch(()=>{});
@@ -467,6 +529,7 @@ function toggleFullscreen(){
   }
 }
 
+// Met à jour l'icône du bouton plein écran et lance le jeu si en attente.
 document.addEventListener('fullscreenchange',()=>{
   const btn=document.getElementById('fsBtnMenu');
   if(btn){
@@ -479,37 +542,47 @@ document.addEventListener('fullscreenchange',()=>{
   }
 });
 
-/* ── DIMENSIONS ── */
+// ════════════════════════════════════════════════════════════════════════════
+// DIMENSIONS ADAPTATIVES
+// ════════════════════════════════════════════════════════════════════════════
+// Recalcule toutes les dimensions de la scène en fonction de la taille réelle
+// de l'écran. Appelée au démarrage, à chaque resize et changement d'orientation.
+// Retourne true si le calcul a réussi (dimensions valides).
 function computeDim(){
   const wrap = document.getElementById('sceneWrap');
   const rowEl = document.getElementById('scene-top');
   const W = wrap.getBoundingClientRect().width;
   const rowH = rowEl.getBoundingClientRect().height;
 
-  const colW = W * 0.46;
+  const colW = W * 0.46; // largeur d'une colonne (tour) = 46% de la largeur totale
 
+  // Hauteur du disque : on prend le minimum entre ce que permet la hauteur et la largeur
   const diskHfromH = Math.floor((rowH - 20) / (MAX_DISKS + 0.7 + MAX_DISKS * 2 / 16));
   const diskHfromW = Math.round(Math.min(32, Math.max(16, colW * 0.12)));
   DIM.diskH = Math.min(diskHfromH, diskHfromW);
   DIM.diskGap  = 2;
-  DIM.platH    = Math.round(DIM.diskH * 0.85);
-  const clearance = Math.round(DIM.diskH * 0.7);
+  DIM.platH    = Math.round(DIM.diskH * 0.85);      // hauteur du socle
+  const clearance = Math.round(DIM.diskH * 0.7);    // espace libre au-dessus de la pile
   DIM.rodH     = MAX_DISKS * (DIM.diskH + DIM.diskGap) + clearance;
   DIM.rowH     = rowH;
   DIM.rodW     = Math.max(6, Math.round(colW * 0.025));
   DIM.diskMaxW = Math.round(colW * 0.88);
   DIM.diskMinW = Math.max(18, Math.round(colW * 0.12));
 
+  // Applique la hauteur calculée aux zones de jeu
   ['scene-top','scene-bot'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.height = rowH+'px';
   });
 
+  // Applique la hauteur du socle
   ['plat-top','plat-bot'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.height = DIM.platH + 'px';
   });
 
+  // Injecte dynamiquement les tailles du pied de socle et du chapeau du mât
+  // (impossible à faire en CSS statique car elles dépendent des dimensions calculées)
   let st = document.getElementById('dynStyle');
   if(!st){st=document.createElement('style');st.id='dynStyle';document.head.appendChild(st);}
   const fh   = Math.round(DIM.platH * 0.45);
@@ -521,11 +594,18 @@ function computeDim(){
   return true;
 }
 
-/* ── ORIENTATION ── */
+// ════════════════════════════════════════════════════════════════════════════
+// ORIENTATION & REDIMENSIONNEMENT
+// ════════════════════════════════════════════════════════════════════════════
+
+// Tente de verrouiller l'orientation de l'écran (portrait sur mobile).
+// Silencieux en cas d'échec (API non supportée sur certains navigateurs).
 function lockOrientation(type){
   try{ if(screen.orientation&&screen.orientation.lock) screen.orientation.lock(type).catch(()=>{}); }catch(e){}
 }
 
+// Affiche un message "tournez votre appareil" si l'écran est en paysage sur mobile.
+// Sur desktop, le message reste caché.
 function checkOrientation(){
   const isPhone=('ontouchstart' in window)&&Math.min(screen.width,screen.height)<600;
   if(!isPhone){ document.getElementById('rotateMsg').style.display='none'; return; }
@@ -540,6 +620,8 @@ function checkOrientation(){
   }
 }
 
+// Recalcule les dimensions et reconstruit la scène (utilisé lors d'un resize
+// pendant une partie active ou en pause).
 function freezeAndBuild(){
   if(computeDim()){
     ['scene-top','scene-bot'].forEach(id=>{
@@ -549,6 +631,7 @@ function freezeAndBuild(){
     buildScene();
   }
 }
+// Réagit au redimensionnement de la fenêtre (desktop) ou au changement d'orientation (mobile).
 window.addEventListener('resize',()=>{
   checkOrientation();
   if(G.tmr!==null||G.paused) freezeAndBuild();
@@ -559,14 +642,24 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{
 },100));
 
 /* ── SETUP ── */
+
+// ── VÉRIFICATION DE PSEUDO ───────────────────────────────────────────────────
+// Au chargement, on récupère tous les pseudos existants depuis jsonbin.io
+// et on les stocke dans un Set pour une comparaison rapide côté client.
+// La vérification est insensible à la casse (tout est mis en minuscules).
 let knownPseudos = new Set();
 
 window.onload=()=>{
   lockOrientation('portrait-primary');
   setLvl(5);
   checkOrientation();
+
+  // Pré-remplit le champ pseudo avec la dernière valeur utilisée sur cet appareil
   const savedPseudo = localStorage.getItem('hanoi_pseudo');
   if(savedPseudo) document.getElementById('inp').value = savedPseudo;
+
+  // Charge les pseudos existants depuis jsonbin.io, PUIS vérifie le pseudo sauvegardé
+  // (l'ordre est important : knownPseudos doit être peuplé avant checkPseudo)
   fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}})
     .then(r=>r.json())
     .then(d=>{
@@ -578,12 +671,22 @@ window.onload=()=>{
     }).catch(()=>{});
 };
 
+// Affiche un avertissement si le pseudo saisi existe déjà dans le classement.
+// Appelée en temps réel à chaque frappe (oninput) et au chargement si localStorage.
+// L'avertissement est indicatif uniquement — il ne bloque pas le lancement.
 function checkPseudo(val){
   const warn=document.getElementById('pseudoWarn');
   warn.style.display = (val.trim().length>0 && knownPseudos.has(val.trim().toLowerCase())) ? 'block' : 'none';
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// UTILITAIRES UI
+// ════════════════════════════════════════════════════════════════════════════
+
+// Raccourci pour modifier le texte d'un élément par son id.
 function set(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
+
+// Met à jour le niveau sélectionné (bouton actif, aperçu des disques, indication du minimum).
 function setLvl(n){
   G.n=n;
   document.querySelectorAll('.lb').forEach(b=>b.classList.toggle('on',b.textContent.trim()===rom(n)));
@@ -593,38 +696,52 @@ function setLvl(n){
   document.getElementById('prev').innerHTML=h;
   document.getElementById('mhint').textContent=`Minimum : ${(1<<n)-1} coups`;
 }
+
+// Convertit un nombre de disques en chiffre romain (3→III … 7→VII).
 function rom(n){return['III','IV','V','VI','VII'][n-3];}
 
+// ════════════════════════════════════════════════════════════════════════════
+// NAVIGATION (setup → jeu → menu)
+// ════════════════════════════════════════════════════════════════════════════
+
+// Lance une nouvelle partie depuis l'écran de setup.
+// Valide le pseudo (animation d'erreur si vide), sauvegarde dans localStorage,
+// puis tente le plein écran avant de démarrer.
 function startGame(){
   const p=document.getElementById('inp').value.trim();
   if(!p){
+    // Pseudo vide : animation shake + bordure rouge sur le champ
     const el=document.getElementById('inp');
     el.classList.remove('err');void el.offsetWidth;el.classList.add('err');
     setTimeout(()=>el.classList.remove('err'),1500);el.focus();return;
   }
   G.pseudo=p;
-  localStorage.setItem('hanoi_pseudo', p);
+  localStorage.setItem('hanoi_pseudo', p); // mémorise le pseudo pour la prochaine visite
 
   if(document.fullscreenElement){
-    _doStartGame();
+    _doStartGame(); // déjà en plein écran : on lance directement
   } else if(document.documentElement.requestFullscreen){
+    // Demande le plein écran ; le jeu démarrera dans le handler fullscreenchange
     _pendingGameStart = true;
     document.documentElement.requestFullscreen().catch(()=>{
       _pendingGameStart = false;
-      _doStartGame();
+      _doStartGame(); // plein écran refusé : on lance quand même
     });
   } else {
-    _doStartGame();
+    _doStartGame(); // navigateur sans API plein écran
   }
 }
 
+// Effectue le démarrage réel du jeu (masque le setup, affiche la scène).
 function _doStartGame(){
   lockOrientation('portrait-primary');
   show('oSetup',false);
   show('game',true);
   checkOrientation();
-  setTimeout(initGame, 50);
+  setTimeout(initGame, 50); // délai pour laisser le DOM se mettre à jour avant le calcul des dimensions
 }
+
+// Retourne au menu principal depuis la partie ou l'écran de victoire.
 function goMenu(){
   stopTmr();cancelDrag();
   lockOrientation('portrait-primary');
@@ -632,17 +749,26 @@ function goMenu(){
   checkOrientation();
   document.getElementById('inp').value=G.pseudo;setLvl(G.n);
 }
+
+// Rejoue immédiatement avec le même niveau et le même joueur.
 function restartSame(){show('oWin',false);initGame();}
 
-/* ── GAME ── */
+// ════════════════════════════════════════════════════════════════════════════
+// LOGIQUE DE JEU
+// ════════════════════════════════════════════════════════════════════════════
+
+// Initialise (ou réinitialise) une partie : remet à zéro les compteurs,
+// empile les disques sur la tour 1, construit la scène et démarre le chrono.
 function initGame(){
   stopTmr();cancelDrag();
   G.moves=0;G.secs=0;G.paused=false;G.pegs=[[],[],[]];
-  for(let i=G.n;i>=1;i--) G.pegs[0].push(i);
+  for(let i=G.n;i>=1;i--) G.pegs[0].push(i); // empile les disques du plus grand (bas) au plus petit (haut)
   set('mc','0');set('td','0:00');
   set('pdsp','✦ '+G.pseudo+' · Niv. '+rom(G.n));
-  set('minMoves',(1<<G.n)-1);
+  set('minMoves',(1<<G.n)-1); // 2^n - 1
 
+  // tryBuild attend que les dimensions soient calculables (DOM rendu)
+  // avant de construire la scène visuelle.
   function tryBuild(){
     if(computeDim()){
       ['scene-top','scene-bot'].forEach(id=>{
@@ -651,10 +777,11 @@ function initGame(){
       });
       buildScene();
     }
-    else requestAnimationFrame(tryBuild);
+    else requestAnimationFrame(tryBuild); // réessaie à la prochaine frame
   }
   requestAnimationFrame(tryBuild);
 
+  // Démarre le chrono en centièmes de seconde (mis à jour toutes les 200ms)
   G.cs=0;G.tmrStart=performance.now();
   G.tmr=setInterval(()=>{
     G.cs=Math.round((performance.now()-G.tmrStart)/10);
@@ -662,24 +789,37 @@ function initGame(){
     set('td',`${m}:${String(s).padStart(2,'0')}`);
   },200);
 }
+
+// Réinitialise la partie en cours (bouton Reset).
 function resetGame(){initGame();}
+
+// Arrête définitivement le chrono et capture le temps écoulé dans G.cs.
 function stopTmr(){if(G.tmr){G.cs=Math.round((performance.now()-G.tmrStart)/10);}clearInterval(G.tmr);G.tmr=null;G.paused=false;}
+
+// Suspend le chrono sans réinitialiser le temps (ouverture d'un modal).
 function pauseTmr(){
   if(!G.tmr) return;
   G.cs=Math.round((performance.now()-G.tmrStart)/10);
   clearInterval(G.tmr); G.tmr=null; G.paused=true;
 }
+
+// Reprend le chrono là où il s'était arrêté (fermeture du modal).
 function resumeTmr(){
   if(!G.paused) return;
   G.paused=false;
-  G.tmrStart=performance.now()-G.cs*10;
+  G.tmrStart=performance.now()-G.cs*10; // recalcule le point de départ pour continuer sans saut
   G.tmr=setInterval(()=>{
     G.cs=Math.round((performance.now()-G.tmrStart)/10);
     const tot=G.cs, m=Math.floor(tot/6000), s=Math.floor((tot%6000)/100);
     set('td',`${m}:${String(s).padStart(2,'0')}`);
   },200);
 }
+
+// Modaux qui mettent le chrono en pause quand ils s'ouvrent.
 const PAUSE_MODALS=['oRules','oRecords'];
+
+// Affiche ou masque un élément (classe CSS 'off').
+// Si l'élément est un modal pausant et qu'une partie est en cours, gère le chrono.
 function show(id,on){
   document.getElementById(id).classList.toggle('off',!on);
   if(PAUSE_MODALS.includes(id) && (G.tmr!==null || G.paused)){
@@ -687,9 +827,17 @@ function show(id,on){
   }
 }
 
-/* ── SCENE ── */
+// ════════════════════════════════════════════════════════════════════════════
+// CONSTRUCTION DE LA SCÈNE VISUELLE
+// ════════════════════════════════════════════════════════════════════════════
+
+// Disposition des tours sur l'écran :
+// Les tours 0 et 2 sont en haut (scene-top), la tour 1 est en bas (scene-bot).
+// PEG_ROW[i] = 0 → rangée du haut, 1 → rangée du bas.
 const PEG_ROW = [0, 1, 0];
 
+// Reconstruit entièrement la scène visuelle à partir de l'état G.pegs.
+// Appelée à chaque coup joué, au démarrage et après un redimensionnement.
 function buildScene(){
   const rowEls = [
     document.getElementById('scene-top'),
@@ -700,27 +848,33 @@ function buildScene(){
   rowEls[1].style.justifyContent = 'center';
 
   for(let i=0;i<3;i++){
+    // Crée la colonne (zone cliquable de la tour)
     const col=document.createElement('div');
     col.className='pcol '+(PEG_ROW[i]===0?'pcol-top':'pcol-bot');
     col.id=`c${i}`;
     col.style.height = DIM.rowH + 'px';
+
     const rod=document.createElement('div');rod.className='rod';
     rod.style.width=DIM.rodW+'px';rod.style.height=DIM.rodH+'px';
+
+    // Pile de disques : chaque disque est un élément div empilé via flexbox column-reverse
     const stack=document.createElement('div');stack.className='dstack';stack.id=`s${i}`;
     G.pegs[i].forEach(dn=>stack.appendChild(mkDisk(dn)));
+
+    // Label romain (I, II, III) affiché au-dessus du mât — positionné précisément après insertion
     const lbl=document.createElement('div');lbl.className='plbl';lbl.textContent=['I','II','III'][i];
     col.appendChild(rod);
     col.appendChild(stack);
-    // Label positionné juste au-dessus du sommet du rod
-    // rod est en bas de col (justify-content:flex-end), son sommet = col.height - rod.height
-    // On positionne via JS après insertion
     col.appendChild(lbl);
+
+    // Événements souris et tactile sur chaque tour
     col.addEventListener('mousedown',e=>{if(e.button!==0)return;e.preventDefault();onColDown(i,e.clientX,e.clientY,'mouse');});
     col.addEventListener('touchstart',e=>{e.preventDefault();onColDown(i,e.touches[0].clientX,e.touches[0].clientY,'touch');},{passive:false});
     rowEls[PEG_ROW[i]].appendChild(col);
   }
   refreshCols();
-  // Positionner chaque label 1px au-dessus du sommet du mât
+
+  // Positionne chaque label juste au-dessus du sommet du mât (calcul après insertion dans le DOM)
   for(let i=0;i<3;i++){
     const col=document.getElementById(`c${i}`);
     const lbl=col?.querySelector('.plbl');
@@ -728,9 +882,7 @@ function buildScene(){
     if(!col||!lbl||!rod) continue;
     const colRect=col.getBoundingClientRect();
     const rodRect=rod.getBoundingClientRect();
-    // sommet du rod relatif au col
-    const rodTopInCol = rodRect.top - colRect.top;
-    // on veut que le bas du label soit à rodTop - 1px
+    const rodTopInCol = rodRect.top - colRect.top; // sommet du mât relatif à la colonne
     const lblH = lbl.getBoundingClientRect().height || 12;
     lbl.style.top = (rodTopInCol - lblH - 3) + 'px';
     lbl.style.left = '3px';
@@ -740,6 +892,8 @@ function buildScene(){
   }
 }
 
+// Crée l'élément HTML d'un disque de rang dn.
+// La largeur est interpolée linéairement entre diskMinW (disque 1) et diskMaxW (disque n).
 function mkDisk(dn){
   const el=document.createElement('div');el.className=`disk disk-${dn}`;
   const w=Math.round(DIM.diskMinW+(dn-1)*(DIM.diskMaxW-DIM.diskMinW)/(G.n-1||1));
@@ -747,6 +901,10 @@ function mkDisk(dn){
   return el;
 }
 
+// Met à jour les classes CSS des colonnes selon l'état du drag :
+// - 'pickable' : la tour a des disques et aucun drag en cours
+// - 'top' : marque le disque du dessus de chaque pile
+// Appelée après chaque coup ou annulation.
 function refreshCols(){
   for(let i=0;i<3;i++){
     const col=document.getElementById(`c${i}`);if(!col)continue;
@@ -759,11 +917,23 @@ function refreshCols(){
   document.getElementById('escHint').classList.remove('show');
 }
 
-/* ── INTERACTION ── */
+// ════════════════════════════════════════════════════════════════════════════
+// INTERACTION : DRAG & DROP (souris et tactile)
+// ════════════════════════════════════════════════════════════════════════════
+
+// Point d'entrée unique pour un clic ou un tap sur une tour.
+// Si aucun drag en cours : tente de soulever le disque du dessus.
+// Si drag en cours : tente de poser sur cette tour.
 function onColDown(colIdx,cx,cy,src){
   if(!G.drag){if(G.pegs[colIdx].length===0)return;pickUp(colIdx,cx,cy,src);}
   else doDropOrReturn(colIdx);
 }
+
+// Soulève le disque du dessus de la tour fromPeg :
+// - rend le disque original invisible (ghosted)
+// - affiche le fantôme mobile sous le curseur/doigt
+// - enregistre l'état du drag dans G.drag
+// - branche les événements de déplacement
 function pickUp(fromPeg,cx,cy,src){
   const dn=G.pegs[fromPeg][G.pegs[fromPeg].length-1];
   G.drag={dn,fromPeg,src};
@@ -772,6 +942,10 @@ function pickUp(fromPeg,cx,cy,src){
   if(src==='mouse'){document.addEventListener('mousemove',onDocMove);document.addEventListener('mouseup',onDocUp);}
   else{document.addEventListener('touchmove',onDocTouchMove,{passive:false});document.addEventListener('touchend',onDocTouchEnd);}
 }
+
+// Tente de déposer le disque sur la tour toPeg.
+// Un dépôt est valide si : tour différente ET (tour vide OU disque plus petit que le sommet).
+// En cas d'échec, le disque retourne sur sa tour d'origine.
 function doDropOrReturn(toPeg){
   const {dn,fromPeg}=G.drag;
   const valid=toPeg!==fromPeg&&(G.pegs[toPeg].length===0||dn<G.pegs[toPeg][G.pegs[toPeg].length-1]);
@@ -779,13 +953,23 @@ function doDropOrReturn(toPeg){
   if(valid){G.pegs[fromPeg].pop();G.pegs[toPeg].push(dn);G.moves++;set('mc',G.moves);buildScene();checkWin();}
   else{ghostTop(fromPeg,false);refreshCols();}
 }
+
+// Annule le drag en cours et repose le disque sur sa tour d'origine (touche Échap).
 function cancelDrag(){
   if(G.drag){ghostTop(G.drag.fromPeg,false);G.drag=null;}
   endDragListeners();hideGhost();refreshCols();
 }
+
+// Rend le disque du dessus de la tour p invisible (on=true) ou visible (on=false).
 function ghostTop(p,on){const s=document.getElementById(`s${p}`);if(s&&s.lastElementChild)s.lastElementChild.classList.toggle('ghosted',on);}
+
+// Déplace le fantôme et met à jour le survol lors d'un mouvement souris.
 function onDocMove(e){if(G.drag){moveGhost(e.clientX,e.clientY);updateHover(e.clientX,e.clientY);}}
+
+// Idem pour le tactile (preventDefault empêche le scroll de la page).
 function onDocTouchMove(e){e.preventDefault();if(G.drag){const t=e.touches[0];moveGhost(t.clientX,t.clientY);updateHover(t.clientX,t.clientY);}}
+
+// Met à jour les classes candrop/nodrop sur les tours selon la position du curseur.
 function updateHover(cx,cy){
   const over=colAt(cx,cy);
   for(let i=0;i<3;i++){
@@ -795,10 +979,21 @@ function updateHover(cx,cy){
     if(i===over)col.classList.add(ok?'candrop':'nodrop');
   }
 }
+
+// Relâchement souris : dépose sur la tour sous le curseur ou annule.
 function onDocUp(e){if(!G.drag)return;endDragListeners();const c=colAt(e.clientX,e.clientY);if(c>=0)doDropOrReturn(c);else cancelDrag();}
+
+// Relâchement tactile : idem.
 function onDocTouchEnd(e){if(!G.drag)return;endDragListeners();const t=e.changedTouches[0];const c=colAt(t.clientX,t.clientY);if(c>=0)doDropOrReturn(c);else cancelDrag();}
+
+// Supprime tous les écouteurs de déplacement/relâchement (nettoyage après chaque drag).
 function endDragListeners(){document.removeEventListener('mousemove',onDocMove);document.removeEventListener('mouseup',onDocUp);document.removeEventListener('touchmove',onDocTouchMove);document.removeEventListener('touchend',onDocTouchEnd);}
+
+// Touche Échap : annule le drag en cours.
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&G.drag)cancelDrag();});
+
+// Retourne l'index (0, 1 ou 2) de la tour sous les coordonnées (cx, cy), ou -1 si aucune.
+// La zone de détection est élargie verticalement pour inclure le socle.
 function colAt(cx,cy){
   for(let i=0;i<3;i++){
     const el=document.getElementById(`c${i}`);
@@ -809,32 +1004,57 @@ function colAt(cx,cy){
   return -1;
 }
 
-/* ── GHOST ── */
+// ════════════════════════════════════════════════════════════════════════════
+// DISQUE FANTÔME (élément fixe qui suit le curseur pendant le drag)
+// ════════════════════════════════════════════════════════════════════════════
+
+// Affiche le fantôme du disque dn à la position (cx, cy).
+// Réutilise le même élément #ghost en changeant sa classe et ses dimensions.
 function showGhost(dn,cx,cy){
   const g=document.getElementById('ghost');g.className=`disk disk-${dn}`;g.id='ghost';
   const w=Math.round(DIM.diskMinW+(dn-1)*(DIM.diskMaxW-DIM.diskMinW)/(G.n-1||1));
   g.style.width=w+'px';g.style.height=DIM.diskH+'px';
   g.style.left=cx+'px';g.style.top=cy+'px';g.style.display='block';
 }
+
+// Cache le fantôme (fin de drag).
 function hideGhost(){document.getElementById('ghost').style.display='none';}
+
+// Déplace le fantôme à la nouvelle position du curseur/doigt.
 function moveGhost(cx,cy){const g=document.getElementById('ghost');g.style.left=cx+'px';g.style.top=cy+'px';}
 
-/* ── WIN ── */
+// ════════════════════════════════════════════════════════════════════════════
+// VICTOIRE
+// ════════════════════════════════════════════════════════════════════════════
+
+// Vérifie si la partie est gagnée après chaque coup.
+// Tour 3 (index 2) = victoire normale ; Tour 2 (index 1) = victoire avec pénalité.
 function checkWin(){
   if(G.pegs[2].length===G.n){ stopTmr(); setTimeout(()=>showWin(false),250); return; }
   if(G.pegs[1].length===G.n){ stopTmr(); setTimeout(()=>showWin(true),250); }
 }
 
+// Affiche le modal de victoire et calcule le score final avec les éventuelles pénalités.
+//
+// PÉNALITÉS :
+//   - Chaque coup excédentaire (au-delà du minimum 2^n−1) ajoute 2 secondes (200 cs).
+//   - Finir sur la tour II double le temps total après pénalité coups.
+//
+// ÉTOILES :
+//   ★★★ : tour III, coups = minimum
+//   ★★☆ : tour III, 1-2 coups excédentaires  OU  tour II, coups = minimum
+//   ★☆☆ : tour III, 3+ coups excédentaires
+//   ☆☆☆ : tour II + coups excédentaires
 async function showWin(penaltyTour2){
   const mv=G.moves;
-  const rawCs=G.cs;
-  const mn=(1<<G.n)-1;
+  const rawCs=G.cs;          // temps brut (sans pénalités)
+  const mn=(1<<G.n)-1;       // nombre minimum théorique de coups
 
   const excessMoves=Math.max(0,mv-mn);
-  const coupPenCs=excessMoves*200;
+  const coupPenCs=excessMoves*200;              // +2s par coup excédentaire
 
   const csAfterCoups = rawCs + coupPenCs;
-  const cs = penaltyTour2 ? csAfterCoups*2 : csAfterCoups;
+  const cs = penaltyTour2 ? csAfterCoups*2 : csAfterCoups; // doublement si tour II
 
   const anyPenalty = penaltyTour2 || excessMoves>0;
   set('winTitle', anyPenalty ? 'Victoire… Pénalisée' : 'Victoire !');
@@ -851,8 +1071,8 @@ async function showWin(penaltyTour2){
   else                                            stars='☆ ☆ ☆';
   document.getElementById('winStars').textContent = stars;
 
+  // Affiche ou masque les bandeaux de pénalité
   document.getElementById('penaltyNotice').classList.toggle('off', !penaltyTour2);
-
   const pcEl=document.getElementById('penaltyCoups');
   if(excessMoves>0){
     pcEl.classList.remove('off');
@@ -861,6 +1081,7 @@ async function showWin(penaltyTour2){
     pcEl.classList.add('off');
   }
 
+  // Affiche le total de pénalité en secondes dans les stats
   const penStat=document.getElementById('wPenStat');
   if(anyPenalty){
     penStat.classList.remove('off');
@@ -871,10 +1092,13 @@ async function showWin(penaltyTour2){
     penStat.classList.add('off');
   }
 
+  // Remplit les statistiques et le titre du tableau (ex: "Aventuriers")
   const m=Math.floor(cs/6000), s=Math.floor((cs%6000)/100);
-  set('wm',mv);set('wt',`${m}:${String(s).padStart(2,'0')}`);set('wmin',mn);set('lbLvl',{3:'Curieux',4:'Aventuriers',5:'Découvreurs',6:'Explorateurs',7:'Pionniers'}[G.n]||G.n);
+  set('wm',mv);set('wt',`${m}:${String(s).padStart(2,'0')}`);set('wmin',mn);
+  set('lbLvl',{3:'Curieux',4:'Aventuriers',5:'Découvreurs',6:'Explorateurs',7:'Pionniers'}[G.n]||G.n);
   show('oWin',true);
 
+  // Sauvegarde locale (localStorage) du meilleur score de ce joueur sur cet appareil
   const key=`hanoi_${G.n}`;
   const prev=JSON.parse(localStorage.getItem(key)||'null');
   const prevMv  = prev ? prev.mv : null;
@@ -886,6 +1110,7 @@ async function showWin(penaltyTour2){
 
   document.getElementById('newrec').classList.add('off');
 
+  // Enregistre le score sur jsonbin.io puis charge le classement
   const savedN = G.n;
   saveScore(mv, cs, savedN).then(result => loadLB(result, savedN)).catch(()=>loadLB({}, savedN));
 }
@@ -899,12 +1124,16 @@ async function saveScore(mv,cs,n){
   if(!recs[lk]) recs[lk]=[];
   const current=recs[lk];
 
+  // N'enregistre que si le score bat le 5e du classement actuel (critère : temps seul)
   const score5th = current.length>=5 ? current[4] : null;
   const beatsTop5 = !score5th || cs < (score5th.cs??score5th.secs*100);
 
   if(!beatsTop5) return { entries: current, isNewBest: false };
 
   const entry={pseudo:G.pseudo,moves:mv,cs,ts:new Date().toISOString()};
+
+  // Dédoublonnage par pseudo : on ne garde que le meilleur score par joueur.
+  // Critère de départage : temps (cs) → coups (moves) → le plus ancien (ts)
   const byP={};
   [...current,entry].forEach(e=>{
     const eCs=e.cs??e.secs*100;
@@ -915,6 +1144,8 @@ async function saveScore(mv,cs,n){
       || (eCs===bCs && e.moves===byP[e.pseudo].moves && e.ts < byP[e.pseudo].ts))
       byP[e.pseudo]=e;
   });
+
+  // Tri final du classement : temps → coups → date (le plus ancien devant en cas d'égalité parfaite)
   recs[lk]=Object.values(byP).sort((a,b)=>{
     const csA=a.cs??a.secs*100, csB=b.cs??b.secs*100;
     if(csA!==csB) return csA-csB;
@@ -926,13 +1157,20 @@ async function saveScore(mv,cs,n){
     headers:{'Content-Type':'application/json','X-Master-Key':API_KEY},
     body:JSON.stringify({records:recs})});
 
+  // isNewBest = vrai si l'entrée qu'on vient de soumettre est celle retenue pour ce joueur
   const savedEntry=byP[G.pseudo];
   const isNewBest = savedEntry.ts===entry.ts;
 
+  // Ancien score du joueur dans ce niveau (null = première entrée au classement)
+  const prevEntry = current.find(e => e.pseudo === G.pseudo) || null;
+  const prevCs    = prevEntry ? (prevEntry.cs ?? prevEntry.secs * 100) : null;
+
+  // Si nouveau meilleur score personnel : envoie un mail de notification
   if (isNewBest) {
     const finalList = recs[lk];
     const newRank   = finalList.findIndex(e => e.pseudo === G.pseudo) + 1;
     const total     = finalList.length;
+    // prevRank : rang avant cette partie (null = première apparition dans le classement)
     const prevRank  = current.length === 0 ? null
       : (() => { const i = current.findIndex(e => e.pseudo === G.pseudo); return i === -1 ? null : i + 1; })();
     sendRecordEmail(G.pseudo, n, mv, cs, newRank, total, prevRank).catch(err =>
@@ -940,11 +1178,25 @@ async function saveScore(mv,cs,n){
     );
   }
 
-  return { entries: recs[lk], isNewBest };
+  return { entries: recs[lk], isNewBest, prevCs };
 }
 
-async function loadLB({entries,isNewBest}={}, n=G.n){
+// ════════════════════════════════════════════════════════════════════════════
+// CLASSEMENT (LEADERBOARD)
+// ════════════════════════════════════════════════════════════════════════════
+
+// Affiche le classement du niveau n dans le modal de victoire.
+// Si entries est fourni (depuis saveScore), on l'utilise directement ;
+// sinon on recharge depuis jsonbin.io (cas du tableau ouvert hors victoire).
+// Affiche jusqu'à 10 entrées ; met en évidence la ligne du joueur actuel.
+async function loadLB({entries,isNewBest,prevCs}={}, n=G.n){
   const el=document.getElementById('lbList');
+  // Score actuel du joueur dans le classement reçu (pour calculer l'écart)
+  const currentCs = (() => {
+    if(!entries) return null;
+    const e = entries.find(e => e.pseudo === G.pseudo);
+    return e ? (e.cs ?? e.secs * 100) : null;
+  })();
   try{
     if(!entries){
       const r=await fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}});
@@ -952,30 +1204,51 @@ async function loadLB({entries,isNewBest}={}, n=G.n){
       entries=(d.record?.records||{})[`level_${n}`]||[];
       isNewBest=false;
     }
+    // Affiche le badge de nouveau record s'il est dans le top 5
     const inTop5=entries.slice(0,5).some(e=>e.pseudo===G.pseudo);
     document.getElementById('newrec').classList.toggle('off',!(isNewBest&&inTop5));
-    if(isNewBest&&inTop5) document.getElementById('newrec').textContent = `✦ ${titre(n)} ✦`;
+    if(isNewBest&&inTop5){
+      let msg;
+      if(prevCs===null || prevCs===undefined){
+        // Première entrée dans le classement
+        msg = '✦ Bienvenue dans le top 5 ! ✦';
+      } else {
+        // Calcul de l'écart en secondes décimales (centièmes), même au-delà de 60s
+        const diffCs = prevCs - currentCs;
+        const diffSec = (diffCs / 100).toFixed(2).replace('.',',');
+        msg = `✦ Record amélioré de ${diffSec} sec ✦`;
+      }
+      document.getElementById('newrec').textContent = msg;
+    }
 
     if(!entries.length){el.innerHTML='<div class="ltxt">Aucun record encore…</div>';return;}
     el.innerHTML='';
     entries.slice(0,10).forEach((e,i)=>{
       const row=document.createElement('div');
-      row.className='lbrow'+(e.pseudo===G.pseudo?' me':'');
-      const tot=e.cs??((e.secs??0)*100);
+      row.className='lbrow'+(e.pseudo===G.pseudo?' me':''); // classe 'me' = surbrillance
+      const tot=e.cs??((e.secs??0)*100); // compatibilité ancien format (secs → cs)
       const mm=Math.floor(tot/6000),ss=Math.floor((tot%6000)/100),cc=tot%100;
       row.innerHTML=`<span class="lbrnk">${i+1}</span><span class="lbnm">${esc(e.pseudo)}</span><span class="lbsc">${e.moves} coups · ${mm}:${String(ss).padStart(2,'0')}.${String(cc).padStart(2,'0')}</span>`;
       el.appendChild(row);
     });
   }catch{el.innerHTML='<div class="etxt">Classement indisponible</div>';}
 }
+
+// Échappe les caractères HTML dangereux pour afficher les pseudos en toute sécurité.
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-/* ── RECORDS GLOBAL ── */
+// ════════════════════════════════════════════════════════════════════════════
+// TABLEAU DES RECORDS GLOBAL (tous niveaux)
+// ════════════════════════════════════════════════════════════════════════════
+
+// Formate un temps en centièmes de seconde en "m:ss.cc".
 function fmtCs(tot){
   const mm=Math.floor(tot/6000),ss=Math.floor((tot%6000)/100),cc=tot%100;
   return `${mm}:${String(ss).padStart(2,'0')}.${String(cc).padStart(2,'0')}`;
 }
 
+// Ouvre le modal des records globaux et charge les 5 meilleurs de chaque niveau.
+// Le joueur actuel est mis en évidence dans chaque tableau.
 function openRecords(){
   show('oRecords',true);
   const el=document.getElementById('globalLbContent');
@@ -989,6 +1262,7 @@ function openRecords(){
         const lk=`level_${n}`;
         const entries=(recs[lk]||[]).slice(0,5);
         html+=`<div class="lb-level-block">`;
+        // Titre de section : titre pluriel du niveau + nombre minimum de coups
         html+=`<div class="lb-level-title">${{3:'Curieux',4:'Aventuriers',5:'Découvreurs',6:'Explorateurs',7:'Pionniers'}[n]} — min. ${(1<<n)-1} coups</div>`;
         if(!entries.length){
           html+=`<div class="ltxt">Aucun record</div>`;
