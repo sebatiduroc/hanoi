@@ -565,6 +565,12 @@ window.onload=()=>{
   lockOrientation('portrait-primary');
   setLvl(5);
   checkOrientation();
+  const savedPseudo = localStorage.getItem('hanoi_pseudo');
+  if(savedPseudo){
+    const inp = document.getElementById('inp');
+    inp.value = savedPseudo;
+    checkPseudo(savedPseudo);
+  }
   fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}})
     .then(r=>r.json())
     .then(d=>{
@@ -600,6 +606,7 @@ function startGame(){
     setTimeout(()=>el.classList.remove('err'),1500);el.focus();return;
   }
   G.pseudo=p;
+  localStorage.setItem('hanoi_pseudo', p);
 
   if(document.fullscreenElement){
     _doStartGame();
