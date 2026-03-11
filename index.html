@@ -423,17 +423,25 @@ const JBIN   ='https://api.jsonbin.io/v3';
 const EMAILJS_SERVICE  = 'service_twe8h8j';
 const EMAILJS_TEMPLATE = 'template_3x8awnc';
 
-async function sendRecordEmail(pseudo, n, mv, cs) {
+async function sendRecordEmail(pseudo, n, mv, cs, newRank, total, prevRank) {
   const mn  = (1 << n) - 1;
   const m   = Math.floor(cs / 6000);
   const s   = Math.floor((cs % 6000) / 100);
   const cc  = cs % 100;
   const temps = `${m}:${String(s).padStart(2,'0')}.${String(cc).padStart(2,'0')}`;
-  const score = `${mv} coups en ${temps} (min. théorique : ${mn})`;
+  const score = `${mv} coups en ${temps} (min. theorique : ${mn})`;
   const categorie = `Niveau ${n} disque${n>1?'s':''}`;
   const date = new Date().toLocaleString('fr-FR');
+
+  const ordinal = r => r === 1 ? '1er' : `${r}e`;
+  const ou = `${ordinal(newRank)} sur ${total}`;
+  let comment;
+  if (prevRank === null)         comment = 'Nouvel entrant';
+  else if (prevRank === newRank) comment = 'Record ameliore (meme rang)';
+  else                           comment = `Nouveau rang : ${ordinal(newRank)} (etait ${ordinal(prevRank)})`;
+
   await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-    pseudo, categorie, score, date
+    pseudo, categorie, score, date, ou, comment
   });
 }
 const DC=['#e74c3c','#e67e22','#f1c40f','#2ecc71','#3498db','#9b59b6','#ec407a'];
@@ -889,7 +897,12 @@ async function saveScore(mv,cs,n){
   const isNewBest = savedEntry.ts===entry.ts;
 
   if (isNewBest) {
-    sendRecordEmail(G.pseudo, n, mv, cs).catch(err =>
+    const finalList = recs[lk];
+    const newRank   = finalList.findIndex(e => e.pseudo === G.pseudo) + 1;
+    const total     = finalList.length;
+    const prevRank  = current.length === 0 ? null
+      : (() => { const i = current.findIndex(e => e.pseudo === G.pseudo); return i === -1 ? null : i + 1; })();
+    sendRecordEmail(G.pseudo, n, mv, cs, newRank, total, prevRank).catch(err =>
       console.warn('Email non envoyé :', err)
     );
   }
