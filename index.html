@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Tours de Hanoï</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Cinzel+Decorative:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>emailjs.init("B36sTRsm02DxO9k60");</script>
 <style>
 :root{
   --gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6030;
@@ -417,6 +419,23 @@ input.err{animation:shake .45s ease,blinkRed .45s ease 3;border-color:#c0392b!im
 const API_KEY='$2a$10$KF8MxpCoz7EiaFpfywvUvel.9yrVRPB.gl670nIVTkj1qJ7MtVor6';
 const BIN_ID ='69aee540ae596e708f7126fb';
 const JBIN   ='https://api.jsonbin.io/v3';
+
+const EMAILJS_SERVICE  = 'service_twe8h8j';
+const EMAILJS_TEMPLATE = 'template_3x8awnc';
+
+async function sendRecordEmail(pseudo, n, mv, cs) {
+  const mn  = (1 << n) - 1;
+  const m   = Math.floor(cs / 6000);
+  const s   = Math.floor((cs % 6000) / 100);
+  const cc  = cs % 100;
+  const temps = `${m}:${String(s).padStart(2,'0')}.${String(cc).padStart(2,'0')}`;
+  const score = `${mv} coups en ${temps} (min. théorique : ${mn})`;
+  const catégorie = `Niveau ${n} disque${n>1?'s':''}`;
+  const date = new Date().toLocaleString('fr-FR');
+  await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+    pseudo, catégorie, score, date
+  });
+}
 const DC=['#e74c3c','#e67e22','#f1c40f','#2ecc71','#3498db','#9b59b6','#ec407a'];
 const MAX_DISKS=7;
 
@@ -868,6 +887,13 @@ async function saveScore(mv,cs,n){
 
   const savedEntry=byP[G.pseudo];
   const isNewBest = savedEntry.ts===entry.ts;
+
+  if (isNewBest) {
+    sendRecordEmail(G.pseudo, n, mv, cs).catch(err =>
+      console.warn('Email non envoyé :', err)
+    );
+  }
+
   return { entries: recs[lk], isNewBest };
 }
 
