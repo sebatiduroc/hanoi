@@ -566,11 +566,7 @@ window.onload=()=>{
   setLvl(5);
   checkOrientation();
   const savedPseudo = localStorage.getItem('hanoi_pseudo');
-  if(savedPseudo){
-    const inp = document.getElementById('inp');
-    inp.value = savedPseudo;
-    checkPseudo(savedPseudo);
-  }
+  if(savedPseudo) document.getElementById('inp').value = savedPseudo;
   fetch(`${JBIN}/b/${BIN_ID}/latest`,{headers:{'X-Master-Key':API_KEY}})
     .then(r=>r.json())
     .then(d=>{
@@ -578,6 +574,7 @@ window.onload=()=>{
       Object.values(recs).forEach(list=>list.forEach(e=>{
         if(e.pseudo) knownPseudos.add(e.pseudo.toLowerCase());
       }));
+      if(savedPseudo) checkPseudo(savedPseudo);
     }).catch(()=>{});
 };
 
